@@ -1,0 +1,110 @@
+---
+title: "Gifti in R, Network Workflow"
+author: "Micalea Chan"
+date: "2/1/2019"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gifti)
+library(tidyverse)
+library(pals) # for parula color map
+
+ddir <- "/Volumes/data/data3/TMS_OFFLINE/Rest_MotionProcessed_FD30_meaninterp/final"
+subid <- "3tb4238"
+```
+
+## Read in files
+`gL <- read_gifti('<path to L hemisphere functional data>.func.gii')`
+`gR <- read_gifti('<path to L hemisphere functional data>.func.gii')`
+`nodeL <- read_gifti('<path to L hemisphere nodes>.func.gii')`
+`nodeR <- read_gifti('<path to R hemisphere nodes>.func.gii')`
+```{r, echo=F}
+gL <- read_gifti(file.path(ddir, subid, paste(subid, "_allruns_333_zmdt_resid_mntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep="")))
+gR <- read_gifti(file.path(ddir, subid, paste(subid, "_allruns_333_zmdt_resid_mntrpl_bpss_zmdt_tmasked_smooth2.55mm_R_32k_fsLR.func.gii", sep="")))
+
+# Node set
+node_L <- read_gifti(file.path("~/gitlocal/Chan_RSFC_Nodes/gifti_multiple_columns/ROI_L_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii"))
+node_R <- read_gifti(file.path("~/gitlocal/Chan_RSFC_Nodes/gifti_multiple_columns/ROI_R_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii"))
+
+node_order <- read.table("~/gitlocal/Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt", sep="\t", header=T)
+
+# Grab data and put into matrix
+gL <- as.matrix(data.frame(gL$data))
+gR <- as.matrix(data.frame(gR$data))
+node_L <- as.matrix(data.frame(node_L$data))
+node_R <- as.matrix(data.frame(node_R$data))
+
+```
+
+
+## Setup empty matrix
+```{r, echo=F}
+# sanity check
+if(ncol(gL)!=ncol(gR)){
+  stop("Column size (# volumes) of left & right hemisphere should be equal. Check input data.")
+}
+
+N_nodes <- ncol(node_L)+ncol(node_R)
+
+# initailize Node x Time matrix
+tp_L <- matrix(0, ncol(node_L), ncol(gL))
+tp_R <- matrix(0, ncol(node_R), ncol(gR))
+
+for(i in 1:ncol(node_L)){ # Left Hemipshere
+  tp_L[i,]<- colMeans(gL[node_L[,i]==1,])
+}
+
+for(i in 1:ncol(node_R)){ # Right Hemipshere
+  tp_R[i,]<- colMeans(gR[node_R[,i]==1,])
+}
+
+tp <- rbind(tp_L, tp_R)
+rm(tp_L, tp_R)
+
+superheat::superheat(tp,
+                     heat.lim = c(-20, 20), 
+                     heat.pal = c("black","white"),
+                     grid.hline = FALSE,
+                     grid.vline = FALSE,
+                     title="Mean Time series of each node")
+```
+
+## Correlation Matrix (z-transformed)
+```{r, fig.width=6, fig.height=7}
+
+r <- cor(t(tp))
+z <- psych::fisherz(r) #  0.5 * log((1+r)/(1-r))
+
+diag(z) <- 0
+
+# col.parula <- pal.bands(parula, n=200)
+superheat::superheat(z, 
+                     heat.lim = c(-.2, .6), 
+                     heat.pal = rev(brewer.rdylbu(100)), # coolwarm(100),
+                     heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
+                     grid.hline = FALSE,
+                     grid.vline = FALSE,
+                     title="Node x Node Correlation Matrix (z-transformed")
+
+```
+
+## Correlation Matrix, nodes ordered by systems 
+```{r, fig.width=6, fig.height=7}
+superheat::superheat(z, 
+                     membership.rows = ,
+                     membership.cols = ,
+                     heat.lim = c(-.2, .6), 
+                     heat.pal = rev(brewer.rdylbu(100)), # coolwarm(100),
+                     heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
+                     grid.hline = FALSE,
+                     grid.vline = FALSE,
+                     title="Node x Node Correlation Matrix (z-transformed")
+
+```
+

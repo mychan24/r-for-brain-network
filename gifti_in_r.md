@@ -1,60 +1,30 @@
----
-title: "Gifti in R, Network Workflow"
-author: "Micalea Chan"
-date: "2/5/2019"
-output: github_document
-
-  # html_document:
-  #   toc: true
-  #   toc_float: true
-
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-library(gifti)
-library(tidyverse)
-library(pals)
-
-ddir <- ""
-subid <- ""
-```
+Gifti in R, Network Workflow
+================
+Micalea Chan
+2/5/2019
 
 ## Read in files
+
 `gL <- read_gifti('<path to L hemisphere functional data>.func.gii')`
 `gR <- read_gifti('<path to L hemisphere functional data>.func.gii')`
-`nodeL <- read_gifti('<path to L hemisphere nodes>.func.gii')`
-`nodeR <- read_gifti('<path to R hemisphere nodes>.func.gii')`
-`node_order <- read_table('Chan_RSFC_Nodes_PNAS2014_metadata.txt', sep="\t", header=T)`
+`nodeL <- read_gifti('<path to L hemisphere nodes>.func.gii')` `nodeR <-
+read_gifti('<path to R hemisphere nodes>.func.gii')` `node_order <-
+read_table('Chan_RSFC_Nodes_PNAS2014_metadata.txt', sep="\t", header=T)`
 
-`gL <- as.matrix(data.frame(gL$data))`
-`gR <- as.matrix(data.frame(gR$data))`
-`node_L <- as.matrix(data.frame(node_L$data))`
-`node_R <- as.matrix(data.frame(node_R$data))`
+`gL <- as.matrix(data.frame(gL$data))` `gR <-
+as.matrix(data.frame(gR$data))` `node_L <-
+as.matrix(data.frame(node_L$data))` `node_R <-
+as.matrix(data.frame(node_R$data))`
 
-* Gifti files here are mapped to fs_LR 32k surfaces. 
-* Node sets used can be downloaded from [github](https://github.com/mychan24/Chan_RSFC_Nodes)
-* The heatmaps here are generated using a customized version of the [superheat (github)](https://github.com/mychan24/superheat) package. 
-```{r, echo=F}
-gL <- read_gifti(file.path(ddir, subid, paste(subid, "_allruns_333_zmdt_resid_mntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep="")))
-gR <- read_gifti(file.path(ddir, subid, paste(subid, "_allruns_333_zmdt_resid_mntrpl_bpss_zmdt_tmasked_smooth2.55mm_R_32k_fsLR.func.gii", sep="")))
-
-# Node set
-node_L <- read_gifti(file.path("../Chan_RSFC_Nodes/gifti_multiple_columns/ROI_L_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii"))
-node_R <- read_gifti(file.path("../Chan_RSFC_Nodes/gifti_multiple_columns/ROI_R_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii"))
-node_order <- read.table("../Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt", sep="\t", header=T)
-
-# Grab data and put into matrix
-gL <- as.matrix(data.frame(gL$data))
-gR <- as.matrix(data.frame(gR$data))
-node_L <- as.matrix(data.frame(node_L$data))
-node_R <- as.matrix(data.frame(node_R$data))
-
-```
-
+  - Gifti files here are mapped to fs\_LR 32k surfaces.
+  - Node sets used can be downloaded from
+    [github](https://github.com/mychan24/Chan_RSFC_Nodes)
+  - The heatmaps here are generated using a customized version of the
+    [superheat (github)](https://github.com/mychan24/superheat) package.
 
 ## Setup System Color for Plot
-```{r}
+
+``` r
 # ==== Make Color label for heatmap
 node_order$Color <- rgb(node_order$Power_red, node_order$Power_green, node_order$Power_blue)
 
@@ -63,8 +33,9 @@ plotlabel <- node_order %>%
   arrange(Power_label)
 ```
 
-## Extract Nodes' mean time series from surface data
-```{r}
+## Extract Nodes’ mean time series from surface data
+
+``` r
 # sanity check
 if(ncol(gL)!=ncol(gR)){
   stop("Column size (# volumes) of left & right hemisphere should be equal. Check input data.")
@@ -85,9 +56,9 @@ tp <- rbind(tp_L, tp_R)                   # combine L and R
 rm(tp_L, tp_R) # cleanup
 ```
 
-
 ## Plot processed mean time series of each node
-```{r}
+
+``` r
 superheat::superheat(tp,
                      heat.lim = c(-20, 20), 
                      heat.pal = c("black","white"),
@@ -96,8 +67,11 @@ superheat::superheat(tp,
                      title="Mean Time series of each node")
 ```
 
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
 ## Correlation Matrix (z-transformed)
-```{r, fig.width=6, fig.height=7}
+
+``` r
 r <- cor(t(tp))         # Correlation matrix between all nodes
 z <- psych::fisherz(r)  # Fisher's z-transform: 0.5 * log((1+r)/(1-r))
 
@@ -111,11 +85,13 @@ superheat::superheat(z,
                      grid.hline = FALSE,
                      grid.vline = FALSE,
                      title="Node x Node Correlation Matrix (z-transformed)")
-
 ```
 
-## Correlation Matrix, nodes ordered by systems 
-```{r, fig.width=6, fig.height=7}
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
+## Correlation Matrix, nodes ordered by systems
+
+``` r
 superheat::superheat(X = z, 
                      y.axis.reverse = TRUE,
                      membership.rows = node_order$Power_label,
@@ -127,11 +103,13 @@ superheat::superheat(X = z,
                      heat.pal = rev(brewer.rdylbu(100)),
                      heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
                      title="Node x Node Correlation Matrix (z-transformed")
-
 ```
 
-## Splitting Negative and Positive 
-```{r, fig.show='hide'}
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+## Splitting Negative and Positive
+
+``` r
 # ==== Setup positive matrix plot
 z_pos <- z
 z_pos[z<0] <- 0
@@ -146,7 +124,9 @@ ss_pos <- superheat::superheat(X = z_pos,
                      heat.pal = parula(20),
                      heat.pal.values = c(0, 0.5, 1),
                      title="Node x Node Positive Correlation Matrix (z-transformed")
+```
 
+``` r
 # ==== Setup negative matrix plot
 z_neg <- z
 z_neg[z>0] <- 0
@@ -161,13 +141,11 @@ ss_neg <- superheat::superheat(X = z_neg,
                      heat.pal = rev(parula(20)),
                      heat.pal.values = c(0, 0.5, 1),
                      title="Node x Node Negative Correlation Matrix (z-transformed")
-
 ```
 
-
-```{r, fig.width=12, fig.height=7}
+``` r
 gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_neg$plot), 
                         nrow=1)
-
 ```
 
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->

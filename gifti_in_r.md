@@ -5,38 +5,30 @@ Micalea Chan
 
 ## Read in files
 
-`gL <- read_gifti('<path to L hemisphere functional data>.func.gii')`
-`gR <- read_gifti('<path to L hemisphere functional data>.func.gii')`
-`nodeL <- read_gifti('<path to L hemisphere nodes>.func.gii')` `nodeR <-
-read_gifti('<path to R hemisphere nodes>.func.gii')` `node_order <-
-read_table('Chan_RSFC_Nodes_PNAS2014_metadata.txt', sep="\t", header=T)`
-
-`gL <- as.matrix(data.frame(gL$data))` `gR <-
-as.matrix(data.frame(gR$data))` `node_L <-
-as.matrix(data.frame(node_L$data))` `node_R <-
-as.matrix(data.frame(node_R$data))`
-
   - Gifti files here are mapped to fs\_LR 32k surfaces.
   - Node sets used can be downloaded from
     [github](https://github.com/mychan24/Chan_RSFC_Nodes)
-  - The heatmaps here are generated using a customized version of the
-    [superheat (github)](https://github.com/mychan24/superheat) package.
 
-## Setup System Color for Plot
+<!-- end list -->
 
 ``` r
-# ==== Make Color label for heatmap
-node_order$Color <- rgb(node_order$Power_red, node_order$Power_green, node_order$Power_blue)
+gL <- read_gifti(gL_file)
+gR <- read_gifti(gR_file)
 
-plotlabel <- node_order %>%
-  distinct(Power_label, Color) %>%
-  arrange(Power_label)
+node_L <- read_gifti(nodeL_file)    # Chan_RSFC_Nodes/gifti_multiple_columns/ROI_L_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii
+node_R <- read_gifti(nodeR_file)    # Chan_RSFC_Nodes/gifti_multiple_columns/ROI_R_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii
+node_order <- read.table(node_meta_table_file, sep="\t", header=T)  # metadata: Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt
 ```
 
 ## Extract Nodes’ mean time series from surface data
 
 ``` r
 # sanity check
+gL <- as.matrix(data.frame(gL$data))
+gR <- as.matrix(data.frame(gR$data))
+node_L <- as.matrix(data.frame(node_L$data))
+node_R <- as.matrix(data.frame(node_R$data))
+
 if(ncol(gL)!=ncol(gR)){
   stop("Column size (# volumes) of left & right hemisphere should be equal. Check input data.")
 }
@@ -58,6 +50,11 @@ rm(tp_L, tp_R) # cleanup
 
 ## Plot processed mean time series of each node
 
+  - The heatmaps here are generated using a customized version of the
+    [superheat (github)](https://github.com/mychan24/superheat) package.
+
+<!-- end list -->
+
 ``` r
 superheat::superheat(tp,
                      heat.lim = c(-20, 20), 
@@ -67,7 +64,7 @@ superheat::superheat(tp,
                      title="Mean Time series of each node")
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
 
 ## Correlation Matrix (z-transformed)
 
@@ -87,9 +84,20 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
 ## Correlation Matrix, nodes ordered by systems
+
+### Setup System Color for Plot
+
+``` r
+# ==== Make Color label for heatmap
+node_order$Color <- rgb(node_order$Power_red, node_order$Power_green, node_order$Power_blue)
+
+plotlabel <- node_order %>%
+  distinct(Power_label, Color) %>%
+  arrange(Power_label)
+```
 
 ``` r
 superheat::superheat(X = z, 

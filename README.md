@@ -3,8 +3,8 @@ Showing how I manipulate gifti (Surface based brain files) in R to generate netw
 
 ### Prerequisites
 
-* A forked version of the r package [superheat](https://github.com/mychan24/superheat) is used for most of the visualization. 
-![Heatmap generated from superheat (reversed y-axis for top-left origin)](figure-gfm/unnamed-chunk-6-1.png)
+* A forked version of the r package [superheat](https://github.com/mychan24/superheat) is used for most of the visualization. Example:  
+<img src="https://github.com/mychan24/gifti_r_network/blob/master/gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png" width="331" height="331">
 * The [pals](https://cran.r-project.org/web/packages/pals/vignettes/pals_examples.html) package is used for color palette.
 * The [gifti](https://github.com/muschellij2/gifti) package is required to read in gifti files. 
 * Also, `gridExtra` & `ggplotify` for arranging the plots. 

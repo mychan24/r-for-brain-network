@@ -1,5 +1,5 @@
 # gifti_r_network
-Showing how I manipulate gifti (Surface based brain files) in R to generate network matrices for visualization.
+Manipulate gifti (Surface based brain files) in R to generate network matrices for visualization.
 
 ### Prerequisites
 
@@ -9,12 +9,6 @@ Showing how I manipulate gifti (Surface based brain files) in R to generate netw
 * The [pals](https://cran.r-project.org/web/packages/pals/vignettes/pals_examples.html) package is used for color palette.
 * The [gifti](https://github.com/muschellij2/gifti) package is required to read in gifti files. 
 * `gridExtra` & `ggplotify` for arranging the plots. 
-
-
-## Authors
-
-* **Micaela Chan*
-
 
 ## Acknowledgments
 

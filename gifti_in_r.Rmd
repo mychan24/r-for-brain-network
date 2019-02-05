@@ -16,8 +16,8 @@ library(gifti)
 library(tidyverse)
 library(pals)
 
-ddir <- "/Volumes/data/data3/TMS_OFFLINE/Rest_MotionProcessed_FD30_meaninterp/final"
-subid <- "3tb4238"
+ddir <- ""
+subid <- ""
 
 gL_file <- file.path(ddir, subid, paste(subid, "_allruns_333_zmdt_resid_mntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep=""))
 gR_file <- file.path(ddir, subid, paste(subid, "_allruns_333_zmdt_resid_mntrpl_bpss_zmdt_tmasked_smooth2.55mm_R_32k_fsLR.func.gii", sep=""))

@@ -9,7 +9,7 @@
 ### Prerequisites
 
 * A forked version of the r package [superheat](https://github.com/mychan24/superheat) is used for most of the visualization. Example:  
-<img src="https://raw.githubusercontent.com/mychan24/r-for-brain-network/master/gifti/gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png" width="331" height="350">
+<img src="https://raw.githubusercontent.com/mychan24/r-for-brain-network/master/gifti/gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png" width="331" height="370">
 
 * The [pals](https://cran.r-project.org/web/packages/pals/vignettes/pals_examples.html) package is used for color palette.
 * The [gifti](https://github.com/muschellij2/gifti) package is required to read in gifti files. 

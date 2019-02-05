@@ -1,5 +1,10 @@
-# gifti_r_network
-Manipulate gifti (Surface based brain files) in R to generate network matrices for visualization.
+# R for brain network
+
+* Documentation of how to 
+      + Manipulate gifti (surface), nifti (volume), cifti (surf+vol) in R to generate network matrices
+      + Calculate network metrics
+      + Analyze data 
+      + Visualize results.
 
 ### Prerequisites
 

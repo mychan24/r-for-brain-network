@@ -211,4 +211,4 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
                         nrow=1)
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/pn_matrices-1.png)<!-- -->

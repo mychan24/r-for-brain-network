@@ -179,7 +179,7 @@ ss_neg <- superheat::superheat(X = z_neg,
 ```
 
 
-```{r, fig.width=12, fig.height=7}
+```{r pn_matrices, fig.width=12, fig.height=7}
 gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_neg$plot), 
                         nrow=1)
 

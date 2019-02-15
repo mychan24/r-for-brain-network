@@ -1,19 +1,15 @@
 CIFTI in R, MSC single-subject
 ================
 Micalea Chan
-2/5/2019
+2/14/2019
 
-## Read in cifti files
+Read in cifti files
+-------------------
 
-  - MSC-01’s data are used
-      - Individual specific parcellation and community (network) are
-        loaded.
-
-<!-- end list -->
+-   MSC-01's data are used
+    -   Individual specific parcellation and community (network) are loaded.
 
 ``` r
-cii <- read_cifti(cii_file, drop_data = FALSE, trans_data = T)         # Could read in just the data using cifti_data(cii_file)
-
 # Make brainstructure index
 cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
 for(i in 1:length(cii$BrainModel)){
@@ -87,7 +83,8 @@ u_parcel <- unique(parcel)
 u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by #
 ```
 
-## Extract Nodes’ mean time series from surface data
+Extract Nodes' mean time series from surface data
+-------------------------------------------------
 
 ``` r
 # ==== Mask out bad volumes from data
@@ -102,12 +99,10 @@ for(i in 1:length(u_parcel)){
 }
 ```
 
-## Plot processed mean time series of each node
+Plot processed mean time series of each node
+--------------------------------------------
 
-  - The heatmaps here are generated using a customized version of the
-    [superheat (github)](https://github.com/mychan24/superheat) package.
-
-<!-- end list -->
+-   The heatmaps here are generated using a customized version of the [superheat (github)](https://github.com/mychan24/superheat) package.
 
 ``` r
 superheat::superheat(tp,
@@ -118,9 +113,10 @@ superheat::superheat(tp,
                      title="Mean Time series of each parcel")
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-3-1.png)
 
-## Correlation Matrix (z-transformed)
+Correlation Matrix (z-transformed)
+----------------------------------
 
 ``` r
 r <- cor(t(tp))         # Correlation matrix between all nodes
@@ -138,15 +134,16 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-4-1.png)
 
-## Correlation Matrix, nodes ordered by systems
+Correlation Matrix, nodes ordered by systems
+--------------------------------------------
 
 ### Setup System Color for Plot
 
 ``` r
 parlabel <- data.frame(parcel_num=u_parcel, community=NA)
-plotlabel <- read.csv("../data/systemlabel.txt", header=F,
+plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
                           col.names = c("community","comm_label","color","comm_shortlabel"))
 
 for(i in 1:length(u_parcel)){
@@ -168,9 +165,10 @@ superheat::superheat(X = z,
                      title="Parcel x Parcel Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-6-1.png)
 
-## Splitting Negative and Positive
+Splitting Negative and Positive
+-------------------------------
 
 ``` r
 # ==== Setup positive matrix plot
@@ -211,4 +209,4 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
                         nrow=1)
 ```
 
-![](cifti_MSC_r_files/figure-gfm/pn_matrices-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-markdown_github/pn_matrices-1.png)

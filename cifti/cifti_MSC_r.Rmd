@@ -1,7 +1,7 @@
 ---
 title: "CIFTI in R, MSC single-subject"
 author: "Micalea Chan"
-date: "2/14/2019"
+date: "3/5/2019"
 output: github_document
 ---
 
@@ -12,7 +12,7 @@ library(cifti)
 library(tidyverse)
 library(pals)
 library(superheat)
-
+library(igraph)
 
 mscfile <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii"
 tmask_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt"
@@ -26,7 +26,7 @@ if(!file.exists(mscfile)){
 }
 
 if(!file.exists(tmask_file)){
-  dir.create(dirname(tmask_file), recursive = T, )
+  dir.create(dirname(tmask_file), recursive = T)
   download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:processed_restingstate_timecourses:ses-func01:cifti:sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt", destfile = tmask_file)
 }
 
@@ -40,7 +40,6 @@ if(!file.exists(comm_file)){
   download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:surface_parcellation:sub-MSC01_parcel_networks.dscalar.nii", destfile = comm_file)
 }
 
-cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
 ```
 
 ## Read in cifti files
@@ -48,6 +47,7 @@ cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T)
 * MSC-01's data are used
     + Individual specific parcellation and community (network) are loaded.
 ```{r, warning=F}
+cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
 
 # Make brainstructure index
 cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
@@ -59,10 +59,11 @@ for(i in 1:length(cii$BrainModel)){
   
 }
 
-
+# Load parcels
 parcel <- read_cifti(parcel_file)
 parcel <- as.matrix(parcel$data)
 
+# Load community
 comm <- read_cifti(comm_file)
 comm <- as.matrix(comm$data)
   
@@ -70,7 +71,6 @@ comm <- as.matrix(comm$data)
 dim(cii$data) # ~ 64k vertices, includes subcortical volumes
 dim(parcel)   # surface only, excluded medial wall
 dim(comm)     # surface only, excluded medial wall
-
 
 # What are the labeled brain structures in the cii file? 
 cifti_brain_structs(cii)
@@ -99,6 +99,9 @@ for(i in 1:length(u_parcel)){
   tp[i,]<- colMeans(ctmask[which(parcel==u_parcel[i]),])
 }
 
+# order by parcel number
+tp <- tp[order(u_parcel),]
+
 ```
 
 
@@ -106,7 +109,7 @@ for(i in 1:length(u_parcel)){
 
 * The heatmaps here are generated using a customized version of the [superheat (github)](https://github.com/mychan24/superheat) package. 
 
-```{r}
+```{r tpmat}
 superheat::superheat(tp,
                      heat.lim = c(-20, 20), 
                      heat.pal = c("black","white"),
@@ -137,12 +140,12 @@ superheat::superheat(z,
 
 ### Setup System Color for Plot
 ```{r}
-parlabel <- data.frame(parcel_num=u_parcel, community=NA)
+parlabel <- data.frame(parcel_num=sort(u_parcel), community=NA)
 plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
                           col.names = c("community","comm_label","color","comm_shortlabel"))
 
 for(i in 1:length(u_parcel)){
-  parlabel$community[i] <- unique(comm[which(parcel==u_parcel[i])])
+  parlabel$community[i] <- unique(comm[which(parcel==sort(u_parcel)[i])])
 }
 
 ```
@@ -201,5 +204,28 @@ ss_neg <- superheat::superheat(X = z_neg,
 gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_neg$plot), 
                         nrow=1)
 
+```
+
+
+## Plot Positive Netowrk Graph (requires "igraph")
+```{r}
+## Threshold matrix to 4%
+z4 <- z_pos
+z4[z < quantile(z, 0.96)] <- 0
+net <- graph.adjacency(adjmatrix = z4, mode = "undirected", diag = F, weighted = T)
+
+parlabel$id <- 1:nrow(parlabel)
+parlabel$color <- NA
+u_comm <- unique(parlabel$community)
+for(i in u_comm){
+  parlabel$color[parlabel$community==i] <- as.character(plotlabel$color[plotlabel$community==i])
+}
+
+V(net)$id <- parlabel$id
+V(net)$community <- parlabel$community
+net <- simplify(net, remove.multiple = F, remove.loops = T) 
+
+plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+     vertex.color=parlabel$color, alpha=.6)
 ```
 

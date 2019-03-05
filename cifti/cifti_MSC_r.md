@@ -1,7 +1,7 @@
 CIFTI in R, MSC single-subject
 ================
 Micalea Chan
-2/14/2019
+3/5/2019
 
 Read in cifti files
 -------------------
@@ -10,6 +10,8 @@ Read in cifti files
     -   Individual specific parcellation and community (network) are loaded.
 
 ``` r
+cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
+
 # Make brainstructure index
 cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
 for(i in 1:length(cii$BrainModel)){
@@ -20,10 +22,11 @@ for(i in 1:length(cii$BrainModel)){
   
 }
 
-
+# Load parcels
 parcel <- read_cifti(parcel_file)
 parcel <- as.matrix(parcel$data)
 
+# Load community
 comm <- read_cifti(comm_file)
 comm <- as.matrix(comm$data)
   
@@ -97,6 +100,9 @@ tp <- matrix(0, length(u_parcel), sum(tmask))
 for(i in 1:length(u_parcel)){               
   tp[i,]<- colMeans(ctmask[which(parcel==u_parcel[i]),])
 }
+
+# order by parcel number
+tp <- tp[order(u_parcel),]
 ```
 
 Plot processed mean time series of each node
@@ -113,7 +119,7 @@ superheat::superheat(tp,
                      title="Mean Time series of each parcel")
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-3-1.png)
+![](cifti_MSC_r_files/figure-markdown_github/tpmat-1.png)
 
 Correlation Matrix (z-transformed)
 ----------------------------------
@@ -134,7 +140,7 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-4-1.png)
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-3-1.png)
 
 Correlation Matrix, nodes ordered by systems
 --------------------------------------------
@@ -142,12 +148,12 @@ Correlation Matrix, nodes ordered by systems
 ### Setup System Color for Plot
 
 ``` r
-parlabel <- data.frame(parcel_num=u_parcel, community=NA)
+parlabel <- data.frame(parcel_num=sort(u_parcel), community=NA)
 plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
                           col.names = c("community","comm_label","color","comm_shortlabel"))
 
 for(i in 1:length(u_parcel)){
-  parlabel$community[i] <- unique(comm[which(parcel==u_parcel[i])])
+  parlabel$community[i] <- unique(comm[which(parcel==sort(u_parcel)[i])])
 }
 ```
 
@@ -165,7 +171,7 @@ superheat::superheat(X = z,
                      title="Parcel x Parcel Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-6-1.png)
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-5-1.png)
 
 Splitting Negative and Positive
 -------------------------------
@@ -210,3 +216,29 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
 ```
 
 ![](cifti_MSC_r_files/figure-markdown_github/pn_matrices-1.png)
+
+Plot Positive Netowrk Graph (requires "igraph")
+-----------------------------------------------
+
+``` r
+## Threshold matrix to 4%
+z4 <- z_pos
+z4[z < quantile(z, 0.96)] <- 0
+net <- graph.adjacency(adjmatrix = z4, mode = "undirected", diag = F, weighted = T)
+
+parlabel$id <- 1:nrow(parlabel)
+parlabel$color <- NA
+u_comm <- unique(parlabel$community)
+for(i in u_comm){
+  parlabel$color[parlabel$community==i] <- as.character(plotlabel$color[plotlabel$community==i])
+}
+
+V(net)$id <- parlabel$id
+V(net)$community <- parlabel$community
+net <- simplify(net, remove.multiple = F, remove.loops = T) 
+
+plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+     vertex.color=parlabel$color, alpha=.6)
+```
+
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-7-1.png)

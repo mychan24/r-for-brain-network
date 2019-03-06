@@ -56,7 +56,6 @@ for(i in 1:length(cii$BrainModel)){
   endindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset+attributes(cii$BrainModel[[i]])$IndexCount)
   
   cii$brainstructureindex[startindx:endindx] <- i
-  
 }
 
 # Load parcels
@@ -82,9 +81,7 @@ dim(cdata)
 
 u_parcel <- unique(parcel)
 u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by #
-
 ```
-
 
 ## Extract Nodes' mean time series from surface data
 ```{r}
@@ -104,7 +101,6 @@ tp <- tp[order(u_parcel),]
 
 ```
 
-
 ## Plot processed mean time series of each node
 
 * The heatmaps here are generated using a customized version of the [superheat (github)](https://github.com/mychan24/superheat) package. 
@@ -122,7 +118,6 @@ superheat::superheat(tp,
 ```{r, fig.width=6, fig.height=7}
 r <- cor(t(tp))         # Correlation matrix between all nodes
 z <- psych::fisherz(r)  # Fisher's z-transform: 0.5 * log((1+r)/(1-r))
-
 diag(z) <- 0            # Set diagonal to '0'; not informative
 
 superheat::superheat(z, 
@@ -147,7 +142,6 @@ plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
 for(i in 1:length(u_parcel)){
   parlabel$community[i] <- unique(comm[which(parcel==sort(u_parcel)[i])])
 }
-
 ```
 
 ```{r, fig.width=6, fig.height=7}
@@ -162,7 +156,6 @@ superheat::superheat(X = z,
                      heat.pal = rev(brewer.rdylbu(100)),
                      heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
                      title="Parcel x Parcel Correlation Matrix (z-transformed)")
-
 ```
 
 ## Splitting Negative and Positive 
@@ -206,6 +199,39 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
 
 ```
 
+# Plot smoothed matrix
+```{r, fig.show='hide'}
+ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.type = "mean",
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$community,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(0, .3), 
+                     heat.pal = parula(20),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Positive Correlation Matrix (z-transformed")
+
+ss_smooth_neg <- superheat::superheat(X = z_neg, smooth.heat = T, smooth.heat.type = "mean",
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$community,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(-.3, 0), 
+                     heat.pal = rev(parula(20)),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Negative Correlation Matrix (z-transformed")
+
+```
+
+```{r pn_smooth_matrices, fig.width=12, fig.height=7}
+gridExtra::grid.arrange(ggplotify::as.grob(ss_smooth_pos$plot), ggplotify::as.grob(ss_smooth_neg$plot), 
+                        nrow=1)
+
+```
 
 ## Plot Positive Netowrk Graph (requires "igraph")
 ```{r}
@@ -228,4 +254,6 @@ net <- simplify(net, remove.multiple = F, remove.loops = T)
 plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
      vertex.color=parlabel$color, alpha=.6)
 ```
+
+
 

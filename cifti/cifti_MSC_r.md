@@ -19,7 +19,6 @@ for(i in 1:length(cii$BrainModel)){
   endindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset+attributes(cii$BrainModel[[i]])$IndexCount)
   
   cii$brainstructureindex[startindx:endindx] <- i
-  
 }
 
 # Load parcels
@@ -127,7 +126,6 @@ Correlation Matrix (z-transformed)
 ``` r
 r <- cor(t(tp))         # Correlation matrix between all nodes
 z <- psych::fisherz(r)  # Fisher's z-transform: 0.5 * log((1+r)/(1-r))
-
 diag(z) <- 0            # Set diagonal to '0'; not informative
 
 superheat::superheat(z, 
@@ -217,6 +215,44 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
 
 ![](cifti_MSC_r_files/figure-markdown_github/pn_matrices-1.png)
 
+Plot smoothed matrix
+====================
+
+``` r
+ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.type = "mean",
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$community,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(0, .3), 
+                     heat.pal = parula(20),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Positive Correlation Matrix (z-transformed")
+```
+
+``` r
+ss_smooth_neg <- superheat::superheat(X = z_neg, smooth.heat = T, smooth.heat.type = "mean",
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$community,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(-.3, 0), 
+                     heat.pal = rev(parula(20)),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Negative Correlation Matrix (z-transformed")
+```
+
+``` r
+gridExtra::grid.arrange(ggplotify::as.grob(ss_smooth_pos$plot), ggplotify::as.grob(ss_smooth_neg$plot), 
+                        nrow=1)
+```
+
+![](cifti_MSC_r_files/figure-markdown_github/pn_smooth_matrices-1.png)
+
 Plot Positive Netowrk Graph (requires "igraph")
 -----------------------------------------------
 
@@ -241,4 +277,4 @@ plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5,
      vertex.color=parlabel$color, alpha=.6)
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-7-1.png)
+![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-8-1.png)

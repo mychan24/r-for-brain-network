@@ -251,9 +251,28 @@ V(net)$id <- parlabel$id
 V(net)$community <- parlabel$community
 net <- simplify(net, remove.multiple = F, remove.loops = T) 
 
-plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+pnet <- plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
      vertex.color=parlabel$color, alpha=.6)
 ```
 
+## Calculate Network Metrics and plot them
+### Participation Coefficient 
+* Participation coefficient measures a node's connections within its community proportion to its conncetion to the entire network.
+
+```{r}
+# devtools::install_github("AlexChristensen/NetworkToolbox")
+library(NetworkToolbox)
+
+p <- participation(A = z4, comm = parlabel$community)
+p$overall
+p$positive # treating z with no negative edges
+p$negative # treating z with no positive edges
+
+gcol <- grey.colors(n=nrow(z))
+plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+     vertex.color=gcol[order(p$positive)], alpha=.6)
+
+
+```
 
 

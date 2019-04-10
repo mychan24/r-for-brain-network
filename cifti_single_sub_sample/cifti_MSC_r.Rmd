@@ -40,7 +40,6 @@ if(!file.exists(comm_file)){
   dir.create(dirname(comm_file), recursive = T)
   download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:surface_parcellation:sub-MSC01_parcel_networks.dscalar.nii", destfile = comm_file)
 }
-
 ```
 
 ## Read in cifti files
@@ -48,56 +47,67 @@ if(!file.exists(comm_file)){
 * Midnight Scanning Club's first subject's (MSC-01) data is used
     + Individual specific parcellation and community (network) are loaded.
 ```{r, warning=F}
+# Load CIFTI data file
 cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
 
 # Make brainstructure index
+### Notes: The brainstrucure index lets us filter out anatomical structures based on an 
+###        index (this mirrors the cifti packages in MATLAB)
 cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
 for(i in 1:length(cii$BrainModel)){
   startindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset + 1)
-  endindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset+attributes(cii$BrainModel[[i]])$IndexCount)
+  endindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset + 
+                          attributes(cii$BrainModel[[i]])$IndexCount)
   
   cii$brainstructureindex[startindx:endindx] <- i
 }
 
-# Load parcels
+# Load parcel and community assignment of each vertex (provided with MSC data)
+### Notes: Community is used for identifying parcels into community 
+###        (i.e., sub-network like Default Mode Network)
 parcel <- read_cifti(parcel_file)
 parcel <- as.matrix(parcel$data)
 
-# Load community
 comm <- read_cifti(comm_file)
 comm <- as.matrix(comm$data)
   
-# Check dimension of cifti data (volume/frame x vertices)
+# ==== Check dimension of cifti data (volume/frame x vertices)
 dim(cii$data) # ~ 64k vertices, includes subcortical volumes
 dim(parcel)   # surface only, excluded medial wall
 dim(comm)     # surface only, excluded medial wall
 
 # What are the labeled brain structures in the cii file? 
+### Notes: CIFTI data contains the surface (cortx left and right) and subcortical 
+###        structures based on volumetric data. The labels should contain the left & 
+###        right coritcal surface, and individual subcortical labels.
 cifti_brain_structs(cii)
 
 # ==== Take the Left & Right cortex only
+### Notes: subcortical data are not sorted into the community assignments provided by MSC 
+###        data, so only the cortical surface is being analyzed.
 cdata <- as.matrix(cii$data[cii$brainstructureindex==1 | cii$brainstructureindex==2,,])
 # cdata <- cii$data[,,]
 dim(cdata)
 
 u_parcel <- unique(parcel)
-u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by #
+u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by their number
 ```
 
-## Extract Nodes' mean time series from surface data
+## Extract the nodes' mean time series from surface data
 ```{r}
-# ==== Mask out bad volumes from data
+# ==== Mask out bad frames/volumes from data (i.e., scrubbing; Power et al. 2012, 2014)
+### Notes: The time-mask (tmask) that identifies bad frames are provided with MSC data.
 tmask <- read.table(tmask_file)$V1
 ctmask <- cdata[,as.logical(tmask)]
 
-# ==== Extract mean time series from each parcel -> Parcel x Vol matrix
+# ==== Extract mean time series from each parcel itno a matrix (Parcel x Frame)
 tp <- matrix(0, length(u_parcel), sum(tmask))   
 
 for(i in 1:length(u_parcel)){               
   tp[i,]<- colMeans(ctmask[which(parcel==u_parcel[i]),])
 }
 
-# order by parcel number
+# ==== Order matrix by parcel number
 tp <- tp[order(u_parcel),]
 
 ```
@@ -123,9 +133,9 @@ diag(z) <- 0            # Set diagonal to '0'; not informative
 
 superheat::superheat(z, 
                      y.axis.reverse = TRUE, # Used to make origin (0,0) on top left corner
-                     heat.lim = c(-.1, .5), 
-                     heat.pal = parula(100),# rev(brewer.rdylbu(100)), 
-                     heat.pal.values = c(0, 0.5,1),
+                     heat.lim = c(-.2, .4), 
+                     heat.pal = rev(brewer.rdylbu(100)), 
+                     heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
                      grid.hline = FALSE,
                      grid.vline = FALSE,
                      title="Node x Node Correlation Matrix (z-transformed)")
@@ -136,24 +146,27 @@ superheat::superheat(z,
 
 ### Setup System Color for Plot
 ```{r}
-parlabel <- data.frame(parcel_num=sort(u_parcel), community=NA)
+parlabel <- data.frame(parcel_num=sort(u_parcel), community=NA, comm_label=NA, comm_shortlabel=NA)
 plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
                           col.names = c("community","comm_label","color","comm_shortlabel"))
 
 for(i in 1:length(u_parcel)){
-  parlabel$community[i] <- unique(comm[which(parcel==sort(u_parcel)[i])])
+  comm_i <- unique(comm[which(parcel==sort(u_parcel)[i])])
+  parlabel$community[i] <- comm_i
+  parlabel$comm_label[i] <- as.character(plotlabel$comm_label[is.element(plotlabel$community, comm_i)])
+  parlabel$comm_shortlabel[i] <- as.character(plotlabel$comm_shortlabel[is.element(plotlabel$community, comm_i)])
 }
 ```
 
 ```{r, fig.width=6, fig.height=7}
 superheat::superheat(X = z, 
                      y.axis.reverse = TRUE,
-                     membership.rows = parlabel$community,
+                     membership.rows = parlabel$comm_shortlabel,
                      membership.cols = parlabel$community,
                      left.label.col=plotlabel$color,
                      bottom.label.col=plotlabel$color,
                      extreme.values.na = FALSE,
-                     heat.lim = c(-.2, .2), 
+                     heat.lim = c(-.2, .4), 
                      heat.pal = rev(brewer.rdylbu(100)),
                      heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
                      title="Parcel x Parcel Correlation Matrix (z-transformed)")
@@ -166,7 +179,7 @@ z_pos <- z
 z_pos[z<0] <- 0
 ss_pos <- superheat::superheat(X = z_pos, 
                      y.axis.reverse = TRUE,
-                     membership.rows = parlabel$community,
+                     membership.rows = parlabel$comm_shortlabel,
                      membership.cols = parlabel$community,
                      left.label.col=plotlabel$color,
                      bottom.label.col=plotlabel$color,
@@ -181,7 +194,7 @@ z_neg <- z
 z_neg[z>0] <- 0
 ss_neg <- superheat::superheat(X = z_neg, 
                      y.axis.reverse = TRUE,
-                     membership.rows = parlabel$community,
+                     membership.rows = parlabel$comm_shortlabel,
                      membership.cols = parlabel$community,
                      left.label.col=plotlabel$color,
                      bottom.label.col=plotlabel$color,
@@ -204,7 +217,7 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
 ```{r, fig.show='hide'}
 ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.type = "mean",
                      y.axis.reverse = TRUE,
-                     membership.rows = parlabel$community,
+                     membership.rows = parlabel$comm_shortlabel,
                      membership.cols = parlabel$community,
                      left.label.col=plotlabel$color,
                      bottom.label.col=plotlabel$color,
@@ -216,7 +229,7 @@ ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.ty
 
 ss_smooth_neg <- superheat::superheat(X = z_neg, smooth.heat = T, smooth.heat.type = "mean",
                      y.axis.reverse = TRUE,
-                     membership.rows = parlabel$community,
+                     membership.rows = parlabel$comm_shortlabel,
                      membership.cols = parlabel$community,
                      left.label.col=plotlabel$color,
                      bottom.label.col=plotlabel$color,
@@ -294,16 +307,16 @@ parlabel$pc_4td <- p$positive
 ggplot(parlabel, aes(x=pc_4td)) +
   geom_histogram(bins=20) +
   xlab("Participation Coefficient (4%)") +
-  ggtitle("Participation Coefficient (4%) across entire network")
+  ggtitle("Participation Coefficient (4%) across entire network") +
+  theme_bw()
 
 
 ggplot(parlabel, aes(x=pc_4td)) +
-  facet_wrap(~community) +
+  facet_wrap(~comm_shortlabel) +
   geom_histogram(bins = 20) +
   xlab("Participation Coefficient (4%)") +
-  ggtitle("Participation Coefficient (4%) across each sub-network")
-
-
+  ggtitle("Participation Coefficient (4%) across each sub-network") +
+  theme_bw()
 ```
 
 

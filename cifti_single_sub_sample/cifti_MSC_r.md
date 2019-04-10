@@ -1,13 +1,15 @@
 CIFTI in R, MSC single-subject
 ================
 Micalea Chan
-3/5/2019
+4/10/2019
 
-Read in cifti files
--------------------
+## Read in cifti files
 
--   MSC-01's data are used
-    -   Individual specific parcellation and community (network) are loaded.
+  - Midnight Scanning Club’s first subject’s (MSC-01) data is used
+      - Individual specific parcellation and community (network) are
+        loaded.
+
+<!-- end list -->
 
 ``` r
 cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
@@ -85,8 +87,7 @@ u_parcel <- unique(parcel)
 u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by #
 ```
 
-Extract Nodes' mean time series from surface data
--------------------------------------------------
+## Extract Nodes’ mean time series from surface data
 
 ``` r
 # ==== Mask out bad volumes from data
@@ -104,10 +105,12 @@ for(i in 1:length(u_parcel)){
 tp <- tp[order(u_parcel),]
 ```
 
-Plot processed mean time series of each node
---------------------------------------------
+## Plot processed mean time series of each node
 
--   The heatmaps here are generated using a customized version of the [superheat (github)](https://github.com/mychan24/superheat) package.
+  - The heatmaps here are generated using a customized version of the
+    [superheat (github)](https://github.com/mychan24/superheat) package.
+
+<!-- end list -->
 
 ``` r
 superheat::superheat(tp,
@@ -118,10 +121,9 @@ superheat::superheat(tp,
                      title="Mean Time series of each parcel")
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/tpmat-1.png)
+![](cifti_MSC_r_files/figure-gfm/tpmat-1.png)<!-- -->
 
-Correlation Matrix (z-transformed)
-----------------------------------
+## Correlation Matrix (z-transformed)
 
 ``` r
 r <- cor(t(tp))         # Correlation matrix between all nodes
@@ -138,10 +140,9 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-3-1.png)
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
 
-Correlation Matrix, nodes ordered by systems
---------------------------------------------
+## Correlation Matrix, nodes ordered by systems
 
 ### Setup System Color for Plot
 
@@ -169,10 +170,9 @@ superheat::superheat(X = z,
                      title="Parcel x Parcel Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-5-1.png)
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
-Splitting Negative and Positive
--------------------------------
+## Splitting negative and positive edges
 
 ``` r
 # ==== Setup positive matrix plot
@@ -213,10 +213,9 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
                         nrow=1)
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/pn_matrices-1.png)
+![](cifti_MSC_r_files/figure-gfm/pn_matrices-1.png)<!-- -->
 
-Plot smoothed matrix
-====================
+## Plot smoothed matrix
 
 ``` r
 ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.type = "mean",
@@ -251,10 +250,13 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_smooth_pos$plot), ggplotify::as.gr
                         nrow=1)
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/pn_smooth_matrices-1.png)
+![](cifti_MSC_r_files/figure-gfm/pn_smooth_matrices-1.png)<!-- -->
 
-Plot Positive Netowrk Graph (requires "igraph")
------------------------------------------------
+## Plot Positive Netowrk Graph (requires “igraph”)
+
+  - Network is thresholded at 4% edge density
+
+<!-- end list -->
 
 ``` r
 ## Threshold matrix to 4%
@@ -273,8 +275,94 @@ V(net)$id <- parlabel$id
 V(net)$community <- parlabel$community
 net <- simplify(net, remove.multiple = F, remove.loops = T) 
 
-plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+pnet <- plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
      vertex.color=parlabel$color, alpha=.6)
 ```
 
-![](cifti_MSC_r_files/figure-markdown_github/unnamed-chunk-8-1.png)
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+## Calculate network metrics and plot them (requires “NetworkToolbox”)
+
+### Participation Coefficient (4% edge density)
+
+  - Participation coefficient measures a node’s connections within its
+    community proportion to its conncetion to the entire network.
+
+<!-- end list -->
+
+``` r
+if (!require("NetworkToolbox", character.only=T, quietly=T)) {
+  devtools::install_github("AlexChristensen/NetworkToolbox")
+}
+```
+
+    ## Warning: package 'NetworkToolbox' was built under R version 3.5.2
+
+    ## 
+    ## Attaching package: 'NetworkToolbox'
+
+    ## The following objects are masked from 'package:igraph':
+    ## 
+    ##     betweenness, closeness, degree, diversity, strength,
+    ##     transitivity
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     desc
+
+``` r
+library(NetworkToolbox)
+
+p <- participation(A = z4, comm = parlabel$community)
+
+# Each node's PC calculated using positive & negative edge
+# Negative edges were taken out in previous steps, so PC caculated with all-edges and positive-edges are the same. 
+head(p$overall)
+```
+
+    ## [1] 0.8375559 0.3965046 0.6669420 0.5441093 0.6031861 0.3480727
+
+``` r
+head(p$positive)
+```
+
+    ## [1] 0.8375559 0.3965046 0.6669420 0.5441093 0.6031861 0.3480727
+
+``` r
+# PC based on negative edges should all be zero (not usable in this case).
+head(p$negative)
+```
+
+    ## [1] 0 0 0 0 0 0
+
+``` r
+# Coloring nodes based on PC.
+gcol <- grey.colors(n=nrow(z))
+plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+     vertex.color=gcol[order(p$positive)], alpha=.6)
+```
+
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+### Distribution of participation coefficient across entire network and subnetwork
+
+``` r
+parlabel$pc_4td <- p$positive
+
+ggplot(parlabel, aes(x=pc_4td)) +
+  geom_histogram(bins=20) +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across entire network")
+```
+
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
+``` r
+ggplot(parlabel, aes(x=pc_4td)) +
+  facet_wrap(~community) +
+  geom_histogram(bins = 20) +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across each sub-network")
+```
+
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->

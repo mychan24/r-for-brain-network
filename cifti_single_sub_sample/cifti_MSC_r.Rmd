@@ -1,25 +1,26 @@
 ---
 title: "CIFTI in R, MSC single-subject"
 author: "Micalea Chan"
-date: "3/5/2019"
+date: "4/10/2019"
 output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-# install.packages("~/gitlocal/cifti/", repos = NULL, type="source")
 library(cifti)
 library(tidyverse)
 library(pals)
 library(superheat)
 library(igraph)
 
+# Define data paths
 mscfile <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii"
 tmask_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt"
 
 parcel_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/surface_parcellation/sub-MSC01_parcels.dtseries.nii"
 comm_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/surface_parcellation/sub-MSC01_parcel_networks.dscalar.nii"
 
+# Download data if not availble
 if(!file.exists(mscfile)){
   dir.create(dirname(mscfile), recursive = T)
   download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:processed_restingstate_timecourses:ses-func01:cifti:sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii", destfile = mscfile)
@@ -44,7 +45,7 @@ if(!file.exists(comm_file)){
 
 ## Read in cifti files
 
-* MSC-01's data are used
+* Midnight Scanning Club's first subject's (MSC-01) data is used
     + Individual specific parcellation and community (network) are loaded.
 ```{r, warning=F}
 cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
@@ -158,7 +159,7 @@ superheat::superheat(X = z,
                      title="Parcel x Parcel Correlation Matrix (z-transformed)")
 ```
 
-## Splitting Negative and Positive 
+## Splitting negative and positive edges 
 ```{r, fig.show='hide'}
 # ==== Setup positive matrix plot
 z_pos <- z
@@ -199,7 +200,7 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
 
 ```
 
-# Plot smoothed matrix
+## Plot smoothed matrix
 ```{r, fig.show='hide'}
 ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.type = "mean",
                      y.axis.reverse = TRUE,
@@ -234,6 +235,8 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_smooth_pos$plot), ggplotify::as.gr
 ```
 
 ## Plot Positive Netowrk Graph (requires "igraph")
+
+* Network is thresholded at 4% edge density
 ```{r}
 ## Threshold matrix to 4%
 z4 <- z_pos
@@ -255,22 +258,50 @@ pnet <- plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5,
      vertex.color=parlabel$color, alpha=.6)
 ```
 
-## Calculate Network Metrics and plot them
-### Participation Coefficient 
+## Calculate network metrics and plot them (requires "NetworkToolbox")
+### Participation Coefficient (4% edge density)
 * Participation coefficient measures a node's connections within its community proportion to its conncetion to the entire network.
 
 ```{r}
-# devtools::install_github("AlexChristensen/NetworkToolbox")
+if (!require("NetworkToolbox", character.only=T, quietly=T)) {
+  devtools::install_github("AlexChristensen/NetworkToolbox")
+}
+
 library(NetworkToolbox)
 
 p <- participation(A = z4, comm = parlabel$community)
-p$overall
-p$positive # treating z with no negative edges
-p$negative # treating z with no positive edges
 
+# Each node's PC calculated using positive & negative edge
+# Negative edges were taken out in previous steps, so PC caculated with all-edges and positive-edges are the same. 
+head(p$overall)
+head(p$positive)
+
+# PC based on negative edges should all be zero (not usable in this case).
+head(p$negative)
+
+# Coloring nodes based on PC.
 gcol <- grey.colors(n=nrow(z))
 plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
      vertex.color=gcol[order(p$positive)], alpha=.6)
+
+```
+
+### Distribution of participation coefficient across entire network and subnetwork
+
+```{r}
+parlabel$pc_4td <- p$positive
+
+ggplot(parlabel, aes(x=pc_4td)) +
+  geom_histogram(bins=20) +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across entire network")
+
+
+ggplot(parlabel, aes(x=pc_4td)) +
+  facet_wrap(~community) +
+  geom_histogram(bins = 20) +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across each sub-network")
 
 
 ```

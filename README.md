@@ -2,7 +2,7 @@
 
 * Documentation of how to 
   * Manipulate gifti (surface), nifti (volume), cifti (surf+vol) in R to generate network matrices
-    * Checkout the [cifti markdown file](https://github.com/mychan24/r-for-brain-network/blob/master/cifti/cifti_MSC_r.md) for most updated workflow (3/5/2019). 
+    * Checkout the [cifti markdown file](https://github.com/mychan24/r-for-brain-network/blob/master/cifti_single_sub_sample/cifti_MSC_r.md) for most updated workflow (3/5/2019). 
   * Calculate network metrics/measures
   * Visualize network matrices and graphs
   * Analyze data 

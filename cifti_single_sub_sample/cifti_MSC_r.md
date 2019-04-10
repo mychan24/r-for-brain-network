@@ -382,3 +382,38 @@ ggplot(parlabel, aes(x=pc_4td)) +
 ```
 
 ![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->
+
+Use a density plot to visualize distributions where there are small
+number of nodes.
+
+``` r
+ggplot(parlabel, aes(x=pc_4td)) +
+  facet_wrap(~comm_shortlabel) +
+  geom_density() +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across each sub-network") +
+  theme_bw()
+```
+
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+
+  - 00Bd (UnAssigned) are parcels that don’t belong to any community,
+    and likely have very little connections (low degree)
+  - Histogram of degree distribution (4% edge density) shows that nodes
+    that are UnAssinged have very low
+degree
+
+<!-- end list -->
+
+``` r
+parlabel$degree_4td <- degree(A = z4) # calculate degree for each node at 4% edge density
+
+ggplot(parlabel, aes(x=degree_4td)) +
+  facet_wrap(~comm_shortlabel) +
+  geom_histogram(bins = 20) +
+  xlab("Degree (4%)") +
+  ggtitle("Degree (4%) across each sub-network") +
+  theme_bw()
+```
+
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->

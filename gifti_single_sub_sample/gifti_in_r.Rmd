@@ -1,13 +1,8 @@
 ---
 title: "Gifti in R, Network Workflow"
 author: "Micalea Chan"
-date: "2/5/2019"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: github_document
-
-  # html_document:
-  #   toc: true
-  #   toc_float: true
-
 ---
 
 ```{r setup, include=FALSE}

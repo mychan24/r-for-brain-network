@@ -1,0 +1,352 @@
+---
+title: "CIFTI in R, MSC single-subject"
+author: "Micalea Chan"
+date: "4/10/2019"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+    code_folding: hide
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cifti)
+library(tidyverse)
+library(pals)
+library(superheat)
+library(igraph)
+
+# Define data paths
+mscfile <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii"
+tmask_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt"
+
+parcel_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/surface_parcellation/sub-MSC01_parcels.dtseries.nii"
+comm_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/surface_parcellation/sub-MSC01_parcel_networks.dscalar.nii"
+
+# Download data if not availble
+if(!file.exists(mscfile)){
+  dir.create(dirname(mscfile), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:processed_restingstate_timecourses:ses-func01:cifti:sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii", destfile = mscfile)
+}
+
+if(!file.exists(tmask_file)){
+  dir.create(dirname(tmask_file), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:processed_restingstate_timecourses:ses-func01:cifti:sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt", destfile = tmask_file)
+}
+
+if(!file.exists(parcel_file)){
+  dir.create(dirname(parcel_file), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:surface_parcellation:sub-MSC01_parcels.dtseries.nii", destfile = parcel_file)
+}
+
+if(!file.exists(comm_file)){
+  dir.create(dirname(comm_file), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:surface_parcellation:sub-MSC01_parcel_networks.dscalar.nii", destfile = comm_file)
+}
+```
+
+## Read in cifti files
+
+* Midnight Scanning Club's first subject's (MSC-01) data is used
+    + Individual specific parcellation and community (network) are loaded.
+```{r, warning=F}
+# Load CIFTI data file
+cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
+
+# Make brainstructure index
+### Notes: The brainstrucure index lets us filter out anatomical structures based on an 
+###        index (this mirrors the cifti packages in MATLAB)
+cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
+for(i in 1:length(cii$BrainModel)){
+  startindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset + 1)
+  endindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset + 
+                          attributes(cii$BrainModel[[i]])$IndexCount)
+  
+  cii$brainstructureindex[startindx:endindx] <- i
+}
+
+# Load parcel and community assignment of each vertex (provided with MSC data)
+### Notes: Community is used for identifying parcels into community 
+###        (i.e., sub-network like Default Mode Network)
+parcel <- read_cifti(parcel_file)
+parcel <- as.matrix(parcel$data)
+
+comm <- read_cifti(comm_file)
+comm <- as.matrix(comm$data)
+  
+# ==== Check dimension of cifti data (volume/frame x vertices)
+dim(cii$data) # ~ 64k vertices, includes subcortical volumes
+dim(parcel)   # surface only, excluded medial wall
+dim(comm)     # surface only, excluded medial wall
+
+# What are the labeled brain structures in the cii file? 
+### Notes: CIFTI data contains the surface (cortx left and right) and subcortical 
+###        structures based on volumetric data. The labels should contain the left & 
+###        right coritcal surface, and individual subcortical labels.
+cifti_brain_structs(cii)
+
+# ==== Take the Left & Right cortex only
+### Notes: subcortical data are not sorted into the community assignments provided by MSC 
+###        data, so only the cortical surface is being analyzed.
+cdata <- as.matrix(cii$data[cii$brainstructureindex==1 | cii$brainstructureindex==2,,])
+# cdata <- cii$data[,,]
+dim(cdata)
+
+u_parcel <- unique(parcel)
+u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by their number
+```
+
+## Extract the nodes' mean time series from surface data
+```{r}
+# ==== Mask out bad frames/volumes from data (i.e., scrubbing; Power et al. 2012, 2014)
+### Notes: The time-mask (tmask) that identifies bad frames are provided with MSC data.
+tmask <- read.table(tmask_file)$V1
+ctmask <- cdata[,as.logical(tmask)]
+
+# ==== Extract mean time series from each parcel itno a matrix (Parcel x Frame)
+tp <- matrix(0, length(u_parcel), sum(tmask))
+
+for(i in 1:length(u_parcel)){               
+  tp[i,]<- colMeans(ctmask[which(parcel==u_parcel[i]),])
+}
+
+# ==== Order matrix by parcel number
+tp <- tp[order(u_parcel),]
+```
+
+## Plot processed mean time series of each node
+
+* The heatmaps here are generated using a customized version of the [superheat (github)](https://github.com/mychan24/superheat) package. 
+
+```{r tpmat}
+superheat::superheat(tp,
+                     heat.lim = c(-20, 20), 
+                     heat.pal = c("black","white"),
+                     grid.hline = FALSE,
+                     grid.vline = FALSE,
+                     title="Mean Time series of each parcel (bad frame removed)")
+```
+
+## Correlation Matrix (z-transformed)
+```{r, fig.width=6, fig.height=7}
+r <- cor(t(tp))         # Correlation matrix between all nodes
+z <- psych::fisherz(r)  # Fisher's z-transform: 0.5 * log((1+r)/(1-r))
+diag(z) <- 0            # Set diagonal to '0'; not informative
+
+superheat::superheat(z, 
+                     y.axis.reverse = TRUE, # Used to make origin (0,0) on top left corner
+                     heat.lim = c(-.2, .4), 
+                     heat.pal = rev(brewer.rdylbu(100)), 
+                     heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
+                     grid.hline = FALSE,
+                     grid.vline = FALSE,
+                     title="Node x Node Correlation Matrix (z-transformed)")
+
+```
+
+## Correlation Matrix, nodes ordered by systems 
+
+### Setup System Color for Plot
+```{r}
+parlabel <- data.frame(parcel_num=sort(u_parcel), community=NA, comm_label=NA, comm_shortlabel=NA)
+plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
+                          col.names = c("community","comm_label","color","comm_shortlabel"))
+
+for(i in 1:length(u_parcel)){
+  comm_i <- unique(comm[which(parcel==sort(u_parcel)[i])])
+  parlabel$community[i] <- comm_i
+  parlabel$comm_label[i] <- as.character(plotlabel$comm_label[is.element(plotlabel$community, comm_i)])
+  parlabel$comm_shortlabel[i] <- as.character(plotlabel$comm_shortlabel[is.element(plotlabel$community, comm_i)])
+}
+```
+
+```{r, fig.width=6, fig.height=7}
+superheat::superheat(X = z, 
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$comm_shortlabel,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(-.2, .4), 
+                     heat.pal = rev(brewer.rdylbu(100)),
+                     heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
+                     title="Parcel x Parcel Correlation Matrix (z-transformed)")
+```
+
+## Splitting negative and positive edges 
+```{r, fig.show='hide'}
+# ==== Setup positive matrix plot
+z_pos <- z
+z_pos[z<0] <- 0
+ss_pos <- superheat::superheat(X = z_pos, 
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$comm_shortlabel,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(0, .3), 
+                     heat.pal = parula(20),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Positive Correlation Matrix (z-transformed")
+
+# ==== Setup negative matrix plot
+z_neg <- z
+z_neg[z>0] <- 0
+ss_neg <- superheat::superheat(X = z_neg, 
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$comm_shortlabel,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(-.3, 0), 
+                     heat.pal = rev(parula(20)),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Negative Correlation Matrix (z-transformed")
+
+```
+
+
+```{r pn_matrices, fig.width=12, fig.height=7}
+gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_neg$plot), 
+                        nrow=1)
+
+```
+
+## Plot smoothed matrix
+```{r, fig.show='hide'}
+ss_smooth_pos <- superheat::superheat(X = z_pos, smooth.heat = T, smooth.heat.type = "mean",
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$comm_shortlabel,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(0, .3), 
+                     heat.pal = parula(20),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Positive Correlation Matrix (z-transformed")
+
+ss_smooth_neg <- superheat::superheat(X = z_neg, smooth.heat = T, smooth.heat.type = "mean",
+                     y.axis.reverse = TRUE,
+                     membership.rows = parlabel$comm_shortlabel,
+                     membership.cols = parlabel$community,
+                     left.label.col=plotlabel$color,
+                     bottom.label.col=plotlabel$color,
+                     extreme.values.na = FALSE,
+                     heat.lim = c(-.3, 0), 
+                     heat.pal = rev(parula(20)),
+                     heat.pal.values = c(0, 0.5, 1),
+                     title="Node x Node Negative Correlation Matrix (z-transformed")
+
+```
+
+```{r pn_smooth_matrices, fig.width=12, fig.height=7}
+gridExtra::grid.arrange(ggplotify::as.grob(ss_smooth_pos$plot), ggplotify::as.grob(ss_smooth_neg$plot), 
+                        nrow=1)
+
+```
+
+## Plot Positive Netowrk Graph (requires "igraph")
+
+* Network is thresholded at 4% edge density
+```{r}
+## Threshold matrix to 4%
+z4 <- z_pos
+z4[z < quantile(z, 0.96)] <- 0
+net <- graph.adjacency(adjmatrix = z4, mode = "undirected", diag = F, weighted = T)
+
+parlabel$id <- 1:nrow(parlabel)
+parlabel$color <- NA
+u_comm <- unique(parlabel$community)
+for(i in u_comm){
+  parlabel$color[parlabel$community==i] <- as.character(plotlabel$color[plotlabel$community==i])
+}
+
+V(net)$id <- parlabel$id
+V(net)$community <- parlabel$community
+net <- simplify(net, remove.multiple = F, remove.loops = T) 
+
+pnet <- plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+     vertex.color=parlabel$color, alpha=.6)
+```
+
+## Calculate network metrics and plot them (requires "NetworkToolbox")
+### Participation Coefficient (4% edge density)
+* Participation coefficient measures a node's connections within its community proportion to its conncetion to the entire network.
+
+```{r, warning=FALSE}
+if (!require("NetworkToolbox", character.only=T, quietly=T)) {
+  devtools::install_github("AlexChristensen/NetworkToolbox")
+}
+
+library(NetworkToolbox)
+
+p <- participation(A = z4, comm = parlabel$community)
+
+# Each node's PC calculated using positive & negative edge
+# Negative edges were taken out in previous steps, so PC caculated with all-edges and positive-edges are the same. 
+head(p$overall)
+head(p$positive)
+
+# PC based on negative edges should all be zero (not usable in this case).
+head(p$negative)
+
+# Coloring nodes based on PC.
+gcol <- grey.colors(n=nrow(z))
+plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5, 
+     vertex.color=gcol[order(p$positive)], alpha=.6)
+
+```
+
+### Distribution of participation coefficient across entire network and subnetwork
+
+```{r}
+parlabel$pc_4td <- p$positive
+
+ggplot(parlabel, aes(x=pc_4td)) +
+  geom_histogram(bins=20) +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across entire network") +
+  theme_bw()
+
+
+ggplot(parlabel, aes(x=pc_4td)) +
+  facet_wrap(~comm_shortlabel) +
+  geom_histogram(bins = 20) +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across each sub-network") +
+  theme_bw()
+```
+
+Use a density plot to visualize distributions where there are small number of nodes. 
+
+```{r}
+ggplot(parlabel, aes(x=pc_4td)) +
+  facet_wrap(~comm_shortlabel) +
+  geom_density() +
+  xlab("Participation Coefficient (4%)") +
+  ggtitle("Participation Coefficient (4%) across each sub-network") +
+  theme_bw()
+```
+
+* 00Bd (UnAssigned) are parcels that don't belong to any community, and likely have very little connections (low degree)
+* Histogram of degree distribution (4% edge density) shows that nodes that are UnAssinged have very low degree 
+
+```{r}
+parlabel$degree_4td <- degree(A = z4) # calculate degree for each node at 4% edge density
+
+ggplot(parlabel, aes(x=degree_4td)) +
+  facet_wrap(~comm_shortlabel) +
+  geom_histogram(bins = 20) +
+  xlab("Degree (4%)") +
+  ggtitle("Degree (4%) across each sub-network") +
+  theme_bw()
+
+```
+
+

@@ -1,6 +1,12 @@
 # R for brain network
 
-* Documentation of how to 
+### Why R for brain network?  
+Human brain network derived from functional magnetic resonance imaging (fMRI) data are often analyzed and visualize using a combination of MATLAB or network-visualization software (e.g., cytoscape, gephi). 
+
+However, much of graph analysis can be accomplished in R. Here, I document a graph-analysis workflow of fMRI resting-state network in R. This allows easy integration with other statistical analysis conducted on the targeted graph measures (e.g., degree, participation coefficient, modularity, system segregation).
+
+This repository includes documentation of the following: 
+
   * Manipulate gifti (surface), nifti (volume), cifti (surf+vol) in R to generate network matrices
     * Checkout the [cifti markdown file](https://github.com/mychan24/r-for-brain-network/blob/master/cifti_single_sub_sample/cifti_MSC_r.md) for most updated workflow (3/5/2019). 
   * Calculate network metrics/measures

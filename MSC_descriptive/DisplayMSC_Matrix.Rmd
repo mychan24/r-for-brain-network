@@ -14,8 +14,12 @@ suppressMessages(library(ggplotify))
 suppressMessages(library(grid))
 suppressMessages(library(pals))
 # Read functions -----------------------------------
-tool.path <- "../tools/"
+tool.path <- "../../restinginpca/tools/"
 source(paste0(tool.path,"getVoxDes.R")) #### in restinginpca repo
+
+zmat.path <- "../../restinginpca/data/zmat"
+parcel.comm.path <- "../../restinginpca/data/parcel_community"
+CommName <- read.csv("../../restinginpca/data/parcel_community/systemlabel.txt",header = FALSE)
 
 #### == DEFINE Parameters (e.g., subj name, paths) == ####
 # This section will hopefully become parameterized for RMD in the future 
@@ -37,11 +41,9 @@ subj.name <- c("sub01","sub02", "sub03",
 
 ```
 
-```{r community_list, echo = FALSE, fig.height= 10, fig.width = 2}
+```{r community_list, fig.height= 10, fig.width = 2}
 # rename communities
 #--- read the file with community information: label number & community name & color & abbreviation for community name
-parcel.comm.path <- "../data/parcel_community"
-CommName <- read.csv("../data/parcel_community/systemlabel.txt",header = FALSE)
 colnames(CommName) <- c("Comm", "CommLabel","CommColor","CommLabel.short")
 CommName[,'Community'] <- c("UnAssign", "Default","lateral Visual","Frontoparietal",
                             "medial Visual","dorsal Attention","Premotor",
@@ -50,13 +52,12 @@ CommName[,'Community'] <- c("UnAssign", "Default","lateral Visual","Frontopariet
                             "anterior Medial temporal","posterior Medial temporal",
                             "Parietal memory","Context","Sensorimotor - foot", 
                             "Unknown","Unknown","Unknown","UnKnown","UnKnown")
-pander::pander(CommName[,c("Comm", "Community","CommLabel.short")])
+# pander::pander(CommName[,c("Comm", "Community","CommLabel.short")])
 
 ```
 
 ```{r data_info}
 # read parcel labels for each subject
-parcel.comm.path <- "../data/parcel_community"
 parcel.list <- lapply(1:length(parcelfile2read), function(x){
                       parcel <- read.table(paste0(parcel.comm.path, parcelfile2read[x]),sep = ",")
                       getVoxDes(parcel,CommName)
@@ -76,10 +77,8 @@ for(i in 1:length(subj.name)){
 
 ```
 
-```{r setup_matrix, echo = FALSE, include = FALSE, fig.show='hide'}
+```{r setup_matrix, fig.show='hide'}
 ### Make these not objects, but part of a list? ### MYC NEED TO CHANGE 20190404
-# read examplar data
-zmat.path <- "../data/zmat"
 #--- plot heatmap
 hmaplist <- list()
 hmaplist_i <- 1
@@ -111,7 +110,7 @@ for(subj.count in 1:length(parcel.list)){
 
 ```
 
-```{r plot_all_sub_session_hmap, echo=F, fig.height=20, fig.width= 40}
+```{r plot_all_sub_session_hmap, echo=T, fig.height=20, fig.width= 40}
 for(i in 1:length(hmaplist)){
   print(sprintf("%s", subj.name[i]))
   do.call(grid.arrange, c(hmaplist[[i]], ncol=5))

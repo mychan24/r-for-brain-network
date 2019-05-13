@@ -5,9 +5,9 @@
 * Create listA
   + `listA <- list()`
 * Creat a list inside listA
-  + `listA[[1]] <- list()
+  + `listA[[1]] <- list()`
 * Assign a superheat()$plot into the second list
-  + `listA[[1]][[1]] <- superheat(mat)$plot
+  + `listA[[1]][[1]] <- superheat(mat)$plot`
 * Do that in a loop that oragnizes it (probably can use `apply` to do this...)
 
 ### Show heatmaps using grid.arrange()

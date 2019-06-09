@@ -1,0 +1,114 @@
+---
+title: "MSC All Subjects RSFC Spring-embedded Graphs - 4% Edge Density"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(pander))
+suppressMessages(library(magrittr))
+suppressMessages(library(ExPosition))
+suppressMessages(library(gridExtra))
+suppressMessages(library(ggplotify))
+suppressMessages(library(grid))
+suppressMessages(library(igraph))
+# Read functions -----------------------------------
+tool.path <- "../tools/"
+source(paste0(tool.path,"SScomm.R")) # SScomm.R: computes sums of squares of a square matrix according to a design matrix
+source(paste0(tool.path,"vec2sqmat.R"))
+source(paste0(tool.path,"getVoxDes.R"))
+
+#### == DEFINE Parameters (e.g., subj name, paths) == ####
+parcelfile2read <- c("/sub-MSC01_node_parcel_comm.txt",
+                     "/sub-MSC02_node_parcel_comm.txt",
+                     "/sub-MSC03_node_parcel_comm.txt",
+                     "/sub-MSC04_node_parcel_comm.txt",
+                     "/sub-MSC05_node_parcel_comm.txt",
+                     "/sub-MSC06_node_parcel_comm.txt",
+                     "/sub-MSC07_node_parcel_comm.txt",
+                     "/sub-MSC08_node_parcel_comm.txt",
+                     "/sub-MSC09_node_parcel_comm.txt",
+                     "/sub-MSC10_node_parcel_comm.txt"
+                     )
+subj.name <- c("sub01","sub02", "sub03",
+               "sub04","sub05", "sub06",
+               "sub07","sub08", "sub09","sub010")
+
+```
+
+```{r community_list, echo = FALSE, fig.height= 10, fig.width = 2}
+# rename communities
+#--- read the file with community information: label number & community name & color & abbreviation for community name
+parcel.comm.path <- "../data/parcel_community"
+CommName <- read.csv("../data/parcel_community/systemlabel.txt",header = FALSE)
+colnames(CommName) <- c("Comm", "CommLabel","CommColor","CommLabel.short")
+CommName[,'Community'] <- c("UnAssign", "Default","lateral Visual","Frontoparietal",
+                            "medial Visual","dorsal Attention","Premotor",
+                            "ventral Attention","Salience","Cingular opercular",
+                            "Sensorimotor - hand","Sensorimotor - face","Auditory",
+                            "anterior Medial temporal","posterior Medial temporal",
+                            "Parietal memory","Context","Sensorimotor - foot", 
+                            "Unknown","Unknown","Unknown","UnKnown","UnKnown")
+pander::pander(CommName[,c("Comm", "Community","CommLabel.short")])
+
+```
+
+```{r data_info}
+# read parcel labels for each subject
+parcel.comm.path <- "../data/parcel_community"
+parcel.list <- lapply(1:length(parcelfile2read), function(x){
+                      parcel <- read.table(paste0(parcel.comm.path, parcelfile2read[x]),sep = ",")
+                      getVoxDes(parcel,CommName)
+                      })
+names(parcel.list) <- subj.name
+
+#-- Create colors for heatmap
+labelcol <- list()
+textcol <- list()
+for(i in 1:length(subj.name)){
+  labelcol[[i]] <- parcel.list[[i]]$Comm.col$gc[order(rownames(parcel.list[[i]]$Comm.col$gc))]
+  names(labelcol)[i] <- subj.name[i]
+
+  textcol[[i]] <- rep("black", length(labelcol[[i]]))
+  textcol[[i]][as(colorspace::hex2RGB(labelcol[[i]]), "polarLUV")@coords[,1] < 35] <- "white"  # Convert hex2RGB to lum
+}
+
+```
+
+## Here are the heatmaps of all 10 sessions arranged by each subject 
+```{r setup_spring}
+zmat.path <- "../data/zmat"
+springlist <- list()
+springlist_i <- 1
+for(subj.count in 1:length(parcel.list)){
+  load(sprintf("%s/sub-MSC%02d_zcube_rcube.RData",zmat.path,subj.count))
+  springlist[[subj.count]] <- list()
+  for(session.count in 1:dim(cubes$rcube)[3]){
+    z <- cubes$rcube[,,session.count]
+    z_pos <- z
+    z_pos[z_pos<0] <- 0
+    ## Threshold matrix to 4%
+    z4 <- z_pos
+    z4[z_pos < quantile(z_pos, 0.96)] <- 0
+    net <- graph.adjacency(adjmatrix = z4, mode = "undirected", diag = F, weighted = T)
+    
+    V(net)$id <- parcel.list[[subj.name[subj.count]]]$vox.des$NodeID
+    V(net)$community <- parcel.list[[subj.name[subj.count]]]$vox.des$Comm
+    net <- simplify(net, remove.multiple = F, remove.loops = T) 
+    
+    springlist[[subj.count]][[session.count]]  <- as.grob(function() plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=7, vertex.color=parcel.list[[subj.name[subj.count]]]$vox.des$Comm.Col, alpha=.6))
+   
+    # Remove NA that turns into text labels for nodes
+    springlist[[subj.count]][[session.count]]$children$`graphics-plot-1-text-1`$label <- ""
+    springlist[[subj.count]][[session.count]]$children$`graphics-plot-1-text-2`$label <- ""
+  }
+}
+```
+
+```{r plot_all_sub_session_spring, echo=F, fig.height=20, fig.width= 40}
+for(i in 1:length(springlist)){
+  print(sprintf("%s", subj.name[i]))
+  do.call(grid.arrange, c(springlist[[i]], ncol=5))
+}
+
+```

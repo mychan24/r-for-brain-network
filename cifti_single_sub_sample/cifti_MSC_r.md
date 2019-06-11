@@ -1,42 +1,56 @@
 CIFTI in R, MSC single-subject
 ================
 Micalea Chan
-4/10/2019
+June 11, 2019
 
-## Read in cifti files
+## Prepare data
 
-  - Midnight Scanning Club’s first subject’s (MSC-01) data is used
-      - Individual specific parcellation and community (network) are
-        loaded.
+  - Requires development version of cifti package:
+      - `devtools::install_github("muschellij2/cifti")`
+  - Data: Midnight Scanning Club’s first subject’s (MSC-01) data are
+    used here.
+      - fMRI BOLD data
+      - Individual specific parcellation and community (network), which
+        is used for assigning parcels into community (i.e., sub-network
+        like Default Mode Network)
+
+### Read in cifti files
+
+``` r
+# Load CIFTI data files
+cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
+parcel <- as.matrix(read_cifti(parcel_file)$data)
+comm <- as.matrix(read_cifti(comm_file)$data)
+
+u_parcel <- unique(parcel)
+u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by their number
+```
+
+### Make brainstructure index
+
+The brainstrucure index lets us filter out anatomical structures based
+on an index (this mirrors the cifti packages in MATLAB). As of June
+2019, the cifti package on CRAN would ignore some subcortical labels, so
+make sure to use the development version on github.
+
+``` r
+cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
+for(i in 1:length(cii$BrainModel)){
+  startindx <- attributes(cii$BrainModel[[i]])$IndexOffset + 1
+  endindx <- attributes(cii$BrainModel[[i]])$IndexOffset + 
+             attributes(cii$BrainModel[[i]])$IndexCount
+  
+  cii$brainstructureindex[startindx:endindx] <- i
+}
+```
+
+### Check dimension of cifti data (volume/frame x vertices)
+
+  - Dimension of BOLD, Parcel, and Community:
 
 <!-- end list -->
 
 ``` r
-# Load CIFTI data file
-cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
-
-# Make brainstructure index
-### Notes: The brainstrucure index lets us filter out anatomical structures based on an 
-###        index (this mirrors the cifti packages in MATLAB)
-cii$brainstructureindex <- as.matrix(NA, dim(cii$data)[1])
-for(i in 1:length(cii$BrainModel)){
-  startindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset + 1)
-  endindx <- as.numeric(attributes(cii$BrainModel[[i]])$IndexOffset + 
-                          attributes(cii$BrainModel[[i]])$IndexCount)
-  
-  cii$brainstructureindex[startindx:endindx] <- i
-}
-
-# Load parcel and community assignment of each vertex (provided with MSC data)
-### Notes: Community is used for identifying parcels into community 
-###        (i.e., sub-network like Default Mode Network)
-parcel <- read_cifti(parcel_file)
-parcel <- as.matrix(parcel$data)
-
-comm <- read_cifti(comm_file)
-comm <- as.matrix(comm$data)
-  
-# ==== Check dimension of cifti data (volume/frame x vertices)
 dim(cii$data) # ~ 64k vertices, includes subcortical volumes
 ```
 
@@ -54,11 +68,15 @@ dim(comm)     # surface only, excluded medial wall
 
     ## [1] 59412     1
 
+### Mismatch can be due to inclusion of subcortical/medial wall
+
+CIFTI data contains the surface (cortx left and right) and subcortical
+structures based on volumetric data. The labels should contain the left
+& right coritcal surface, *AND* subcortical labels.
+
+**What are the labeled brain structures in the BOLD cifti file?**
+
 ``` r
-# What are the labeled brain structures in the cii file? 
-### Notes: CIFTI data contains the surface (cortx left and right) and subcortical 
-###        structures based on volumetric data. The labels should contain the left & 
-###        right coritcal surface, and individual subcortical labels.
 cifti_brain_structs(cii)
 ```
 
@@ -81,39 +99,49 @@ cifti_brain_structs(cii)
     ## [17] "CIFTI_STRUCTURE_THALAMUS_LEFT"    
     ## [18] "CIFTI_STRUCTURE_THALAMUS_RIGHT"
 
+Subcortical data are included. Since subcortical data are not sorted
+into the community assignments provided by MSC data, only the cortical
+surface data will be extracted and
+analyzed.
+
 ``` r
-# ==== Take the Left & Right cortex only
-### Notes: subcortical data are not sorted into the community assignments provided by MSC 
-###        data, so only the cortical surface is being analyzed.
 cdata <- as.matrix(cii$data[cii$brainstructureindex==1 | cii$brainstructureindex==2,,])
-# cdata <- cii$data[,,]
+```
+
+Check the dimension of the BOLD data again
+
+``` r
 dim(cdata)
 ```
 
     ## [1] 59412   818
 
-``` r
-u_parcel <- unique(parcel)
-u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by their number
-```
+## Remove motion contaminated data
 
-## Extract the nodes’ mean time series from surface data
+  - Motion contaminated frames/volumes from the data (based on motion
+    scrubbing; Power et al. 2012, 2014) is filtered out using a tmask
+    file provided with the MSC data.
+
+<!-- end list -->
 
 ``` r
-# ==== Mask out bad frames/volumes from data (i.e., scrubbing; Power et al. 2012, 2014)
-### Notes: The time-mask (tmask) that identifies bad frames are provided with MSC data.
 tmask <- read.table(tmask_file)$V1
 ctmask <- cdata[,as.logical(tmask)]
+sprintf("Number of high-motion frames = %s (%s%% removed)", sum(tmask==0), round(sum(tmask==0)/length(tmask)*100))
+```
 
-# ==== Extract mean time series from each parcel itno a matrix (Parcel x Frame)
-tp <- matrix(0, length(u_parcel), sum(tmask))   
+    ## [1] "Number of high-motion frames = 295 (36% removed)"
+
+## Extract mean time series from each parcel into a matrix (node x volume/frame)
+
+``` r
+tp <- matrix(0, length(u_parcel), sum(tmask)) # initialize empty matrix
 
 for(i in 1:length(u_parcel)){               
   tp[i,]<- colMeans(ctmask[which(parcel==u_parcel[i]),])
 }
 
-# ==== Order matrix by parcel number
-tp <- tp[order(u_parcel),]
+tp <- tp[order(u_parcel),] # Order matrix by parcel number
 ```
 
 ## Plot processed mean time series of each node
@@ -129,7 +157,7 @@ superheat::superheat(tp,
                      heat.pal = c("black","white"),
                      grid.hline = FALSE,
                      grid.vline = FALSE,
-                     title="Mean Time series of each parcel")
+                     title="Mean Time series of each parcel (high-motion frames removed)")
 ```
 
 ![](cifti_MSC_r_files/figure-gfm/tpmat-1.png)<!-- -->
@@ -142,7 +170,7 @@ z <- psych::fisherz(r)  # Fisher's z-transform: 0.5 * log((1+r)/(1-r))
 diag(z) <- 0            # Set diagonal to '0'; not informative
 
 superheat::superheat(z, 
-                     y.axis.reverse = TRUE, # Used to make origin (0,0) on top left corner
+                     y.axis.reverse = TRUE, # This option makes origin (0,0) on top left
                      heat.lim = c(-.2, .4), 
                      heat.pal = rev(brewer.rdylbu(100)), 
                      heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
@@ -151,14 +179,18 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
-## Correlation Matrix, nodes ordered by systems
+## Organize the correlation matrix by functional systems
 
 ### Setup System Color for Plot
 
 ``` r
-parlabel <- data.frame(parcel_num=sort(u_parcel), community=NA, comm_label=NA, comm_shortlabel=NA)
+parlabel <- data.frame(parcel_num=sort(u_parcel), 
+                       community=NA, 
+                       comm_label=NA, 
+                       comm_shortlabel=NA)
+
 plotlabel <- read.csv("../data/systemlabel_MSC.txt", header=F,
                           col.names = c("community","comm_label","color","comm_shortlabel"))
 
@@ -181,10 +213,10 @@ superheat::superheat(X = z,
                      heat.lim = c(-.2, .4), 
                      heat.pal = rev(brewer.rdylbu(100)),
                      heat.pal.values = c(0, 0.15, 0.25, 0.75,1),
-                     title="Parcel x Parcel Correlation Matrix (z-transformed)")
+                     title="Node x Node Correlation Matrix Organized by Systems")
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ## Splitting negative and positive edges
 
@@ -202,7 +234,7 @@ ss_pos <- superheat::superheat(X = z_pos,
                      heat.lim = c(0, .3), 
                      heat.pal = parula(20),
                      heat.pal.values = c(0, 0.5, 1),
-                     title="Node x Node Positive Correlation Matrix (z-transformed")
+                     title="Node x Node Positive Correlation Matrix")
 ```
 
 ``` r
@@ -219,7 +251,7 @@ ss_neg <- superheat::superheat(X = z_neg,
                      heat.lim = c(-.3, 0), 
                      heat.pal = rev(parula(20)),
                      heat.pal.values = c(0, 0.5, 1),
-                     title="Node x Node Negative Correlation Matrix (z-transformed")
+                     title="Node x Node Negative Correlation Matrix")
 ```
 
 ``` r
@@ -293,7 +325,7 @@ pnet <- plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5,
      vertex.color=parlabel$color, alpha=.6)
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
 
 ## Calculate network metrics and plot them (requires “NetworkToolbox”)
 
@@ -309,8 +341,6 @@ if (!require("NetworkToolbox", character.only=T, quietly=T)) {
   devtools::install_github("AlexChristensen/NetworkToolbox")
 }
 ```
-
-    ## Warning: package 'NetworkToolbox' was built under R version 3.5.2
 
     ## 
     ## Attaching package: 'NetworkToolbox'
@@ -330,7 +360,7 @@ library(NetworkToolbox)
 p <- participation(A = z4, comm = parlabel$community)
 
 # Each node's PC calculated using positive & negative edge
-# Negative edges were taken out in previous steps, so PC caculated with all-edges and positive-edges are the same. 
+# Negative edges were taken out in previous steps, so PC caculated with all-edges and positive-edges are the same. os
 head(p$overall)
 ```
 
@@ -356,7 +386,7 @@ plot(net, layout=layout_with_fr, vertex.label=NA, vertex.size=5,
      vertex.color=gcol[order(p$positive)], alpha=.6)
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
 
 ### Distribution of participation coefficient across entire network and subnetwork
 
@@ -370,7 +400,7 @@ ggplot(parlabel, aes(x=pc_4td)) +
   theme_bw()
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
 
 ``` r
 ggplot(parlabel, aes(x=pc_4td)) +
@@ -381,7 +411,7 @@ ggplot(parlabel, aes(x=pc_4td)) +
   theme_bw()
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-16-2.png)<!-- -->
 
 Use a density plot to visualize distributions where there are small
 number of nodes.
@@ -395,7 +425,7 @@ ggplot(parlabel, aes(x=pc_4td)) +
   theme_bw()
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
 
   - 00Bd (UnAssigned) are parcels that don’t belong to any community,
     and likely have very little connections (low degree)
@@ -416,4 +446,4 @@ ggplot(parlabel, aes(x=degree_4td)) +
   theme_bw()
 ```
 
-![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](cifti_MSC_r_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->

@@ -16,8 +16,8 @@ library(gtable)
 
 source("../tools/AlignPlots.R")
 
-ddir <- "/Volumes/data/data3/TMS_OFFLINE/MutualInfo/Rest_MotionProcessed_FD30/final"
-subid <- "3tb4794"
+ddir <- ""
+subid <- ""
 
 gL_file <- file.path(ddir, subid, paste(subid, "_allruns__zmdt_resid_ntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep=""))
 gR_file <- file.path(ddir, subid, paste(subid, "_allruns__zmdt_resid_ntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep=""))
@@ -175,9 +175,9 @@ fig_plot_time_series <- function(data) {
                                                 frame.colour="black")) +
     scale_y_reverse(expand=c(0, 0)) + 
     scale_x_continuous(expand = c(0, 0)) +
-    theme_minimal() + 
-    theme(legend.position = "bottom",
-          legend.margin=margin(c(-20,-300,0,5)))
+    theme_minimal() 
+    # theme(legend.position = "bottom",
+    #       legend.margin=margin(c(-20,-300,0,5)))
 }
 
 g1 <- fig_plot_qc(vol = fd$vol, qc = fd$FD, qc_thres=0.3, qc_name="FD", miny = 0, maxy = 2)
@@ -195,18 +195,6 @@ grid.arrange(as.grob(plots_aligned[[1]]),
              as.grob(plots_aligned[[4]]), 
              ncol=1, heights=c(0.15,0.15,0.1,0.6))
 
-```
-
-
-```{r}
-# tictoc::tic()
-# g2 <- superheat::superheat(tp, y.axis.reverse = T,
-#                      heat.lim = c(-20, 20),
-#                      heat.pal = c("black","white"),
-#                      grid.hline = FALSE,
-#                      grid.vline = FALSE,
-#                      title="Mean Time series of each node")
-# tictoc::toc()
 ```
 
 ## Correlation Matrix (z-transformed)

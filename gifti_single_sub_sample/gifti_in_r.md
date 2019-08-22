@@ -1,7 +1,7 @@
 Gifti in R, Network Workflow
 ================
 Micalea Chan
-2/5/2019
+August 22, 2019
 
 ## Read in files
 
@@ -15,9 +15,32 @@ Micalea Chan
 gL <- read_gifti(gL_file)
 gR <- read_gifti(gR_file)
 
-node_L <- read_gifti(nodeL_file)    # Chan_RSFC_Nodes/gifti_multiple_columns/ROI_L_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii
-node_R <- read_gifti(nodeR_file)    # Chan_RSFC_Nodes/gifti_multiple_columns/ROI_R_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii
-node_order <- read.table(node_meta_table_file, sep="\t", header=T)  # metadata: Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt
+# nodes (L/R): Chan_RSFC_Nodes/gifti_multiple_columns/ROI_L/R_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii
+# metadata: Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt
+node_L <- read_gifti(nodeL_file)    
+node_R <- read_gifti(nodeR_file)    
+node_order <- read.table(node_meta_table_file, sep="\t", header=T)  
+
+
+# Load motion/tmask files
+fd <- read.table(fd_file, col.names = "FD")
+fd$vol <- 1:nrow(fd)
+
+motion <- read.table(motion_file, col.names = c("X","Y","Z","P","Y","R"))
+dv <- read.table(dv_file, col.names = "DVARS")
+dv$vol <- 1:nrow(dv)
+
+tmask <- read.table(tmask_file, col.names = "tmask")
+
+# Tmask the motion files
+fd <- data.frame(fd[as.logical(tmask$tmask),])
+motion <- motion[as.logical(tmask$tmask),]
+dv <- dv[as.logical(tmask$tmask),]
+
+# Reasign volume #  after tmasking
+fd$vol <- 1:nrow(fd)
+dv$vol <- 1:nrow(dv)
+motion$vol <- 1:nrow(motion)
 ```
 
 ## Extract Nodes’ mean time series from surface data
@@ -56,15 +79,117 @@ rm(tp_L, tp_R) # cleanup
 <!-- end list -->
 
 ``` r
-superheat::superheat(tp,
-                     heat.lim = c(-20, 20), 
-                     heat.pal = c("black","white"),
-                     grid.hline = FALSE,
-                     grid.vline = FALSE,
-                     title="Mean Time series of each node")
+tp_to_longdat <- function(data){
+  df <- data.frame(roi=1:nrow(data),data)
+  names(df)[2:ncol(df)] <- 1:(ncol(df)-1)
+  df_long <- gather(df, key = "vol", value = "bold", 2:(ncol(df)))
+  df_long$vol <- as.numeric(df_long$vol)
+  return(df_long)
+}
+
+motion_to_longdat <- function(data){
+  tdf <- gather(motion, key = "XYZPYR", value="motion", 1:6) 
+  tdf$XYZPYR<- factor(tdf$XYZPYR, c("X","Y","Z","P","Y.1","R"))
+  tdf$vol <- as.numeric(tdf$vol)
+  return(tdf)
+}
+
+df_long <- tp_to_longdat(tp)
+mot_long <- motion_to_longdat(motion)
+
+#### 1. Function for QC-metric plot  ####
+fig_plot_qc <- function(vol, qc, qc_thres=NULL, qc_name="QC", qc_color="red", miny=NULL, maxy=NULL){
+  df <- data.frame(vol=vol, qc=qc)
+  
+  if(is.null(miny) | is.null(maxy)){
+    miny=min(df$qc)
+    maxy=max(df$qc)
+  }
+  
+  p <- ggplot(data = df, aes(x=vol, y=qc)) +
+    geom_line(color=qc_color) +
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(miny,maxy)) +
+    ylab(label = qc_name)
+  
+  if(!is.null(qc_thres)){
+    qc_flag_x <- which(df$qc > qc_thres)
+    qc_text <- sprintf("%s > %.2f = %d vol", qc_name, qc_thres, length(qc_flag_x))
+    
+    p <- p + geom_hline(yintercept = qc_thres, size=0.2, linetype="dashed") +
+      annotate("text", -Inf, Inf, label=qc_text, hjust = 0, vjust = 1, color=qc_color)
+  }
+  p <- p + theme_minimal() +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank())
+  return(p)
+}
+
+#### 2. Function for 6 motion plot  ####
+fig_plot_motion <- function(data){
+  ggplot(data, aes(x=vol, y=XYZPYR, fill=motion)) +
+    geom_raster() +
+    scale_fill_distiller(palette = "Greys") +
+    scale_x_continuous(expand = c(0, 0)) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank())
+}
+
+#### 3. Function for gray plot  ####
+fig_plot_time_series <- function(data) {
+  min <- -20 # min(data$bold)
+  max <- 20 # max(data$bold)
+  max_diff <- c(min, max) %>% abs() %>% max()
+  ggplot(data, aes(vol, roi, fill = bold)) +
+    geom_raster() +
+    scale_fill_distiller(palette = "Greys", limits = c(-max_diff, max_diff),
+                         guide = guide_colorbar(label = TRUE,
+                                                frame.colour="black")) +
+    scale_y_reverse(expand=c(0, 0)) + 
+    scale_x_continuous(expand = c(0, 0)) +
+    theme_minimal() + 
+    theme(legend.position = "bottom",
+          legend.margin=margin(c(-20,-300,0,5)))
+}
+
+g1 <- fig_plot_qc(vol = fd$vol, qc = fd$FD, qc_thres=0.3, qc_name="FD", miny = 0, maxy = 2)
+g2 <- fig_plot_qc(vol = dv$vol, qc = dv$DVARS, qc_name="DVARS", qc_color = "blue")
+g3 <- fig_plot_motion(mot_long)
+g4 <- fig_plot_time_series(df_long)
+
+
+plots_aligned <- AlignPlots(g1, g2, g3, g4)
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+    ## Warning: Removed 1 rows containing missing values (geom_path).
+
+    ## Warning in .Primitive("max")(NULL, NULL, NULL, NULL): no non-missing
+    ## arguments to max; returning -Inf
+
+``` r
+grid.arrange(as.grob(plots_aligned[[1]]), 
+             as.grob(plots_aligned[[2]]), 
+             as.grob(plots_aligned[[3]]), 
+             as.grob(plots_aligned[[4]]), 
+             ncol=1, heights=c(0.15,0.15,0.1,0.6))
+```
+
+![](gifti_in_r_files/figure-gfm/plot_motion-1.png)<!-- -->
+
+``` r
+# tictoc::tic()
+# g2 <- superheat::superheat(tp, y.axis.reverse = T,
+#                      heat.lim = c(-20, 20),
+#                      heat.pal = c("black","white"),
+#                      grid.hline = FALSE,
+#                      grid.vline = FALSE,
+#                      title="Mean Time series of each node")
+# tictoc::toc()
+```
 
 ## Correlation Matrix (z-transformed)
 
@@ -84,7 +209,7 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
 
 ## Correlation Matrix, nodes ordered by systems
 
@@ -113,7 +238,7 @@ superheat::superheat(X = z,
                      title="Node x Node Correlation Matrix (z-transformed")
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
 ## Splitting Negative and Positive
 
@@ -156,4 +281,4 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
                         nrow=1)
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->

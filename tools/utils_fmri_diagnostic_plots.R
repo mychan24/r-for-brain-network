@@ -3,7 +3,7 @@
 # for fMRI data. These can be combine together using grid.arrange() 
 # to reproduce plots similar to ones in Power 2017 (Neuroimage). 
 # 
-# myc & epp 2019/08/22 - Initial
+# myc & eep 2019/08/22 - Initial
 # #########################################################################
 # 1. plot_time_series()
 # 2. plot_motion()
@@ -19,7 +19,7 @@
 # Ouput:    p,           A ggplot list that can be print()/ggsave() or feed 
 #                        into grid.arrange()
 # #########################################################################
-# myc & epp, UTD 2019/08/22 - Initial
+# myc & eep, UTD 2019/08/22 - Initial
 # #########################################################################
 plot_time_series <- function(data, min=NULL, max=NULL, colpal="Greys") {
 

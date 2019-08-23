@@ -36,11 +36,6 @@ tmask <- read.table(tmask_file, col.names = "tmask")
 fd <- data.frame(fd[as.logical(tmask$tmask),])
 motion <- motion[as.logical(tmask$tmask),]
 dv <- dv[as.logical(tmask$tmask),]
-
-# Reasign volume #  after tmasking
-fd$vol <- 1:nrow(fd)
-dv$vol <- 1:nrow(dv)
-motion$vol <- 1:nrow(motion)
 ```
 
 ## Extract Nodes’ mean time series from surface data
@@ -73,94 +68,16 @@ rm(tp_L, tp_R) # cleanup
 
 ## Plot processed mean time series of each node
 
-  - The heatmaps here are generated using a customized version of the
-    [superheat (github)](https://github.com/mychan24/superheat) package.
+  - The heatmaps here is generated using
+`geom_raster()`
 
 <!-- end list -->
 
 ``` r
-tp_to_longdat <- function(data){
-  df <- data.frame(roi=1:nrow(data),data)
-  names(df)[2:ncol(df)] <- 1:(ncol(df)-1)
-  df_long <- gather(df, key = "vol", value = "bold", 2:(ncol(df)))
-  df_long$vol <- as.numeric(df_long$vol)
-  return(df_long)
-}
-
-motion_to_longdat <- function(data){
-  tdf <- gather(motion, key = "XYZPYR", value="motion", 1:6) 
-  tdf$XYZPYR<- factor(tdf$XYZPYR, c("X","Y","Z","P","Y.1","R"))
-  tdf$vol <- as.numeric(tdf$vol)
-  return(tdf)
-}
-
-df_long <- tp_to_longdat(tp)
-mot_long <- motion_to_longdat(motion)
-
-#### 1. Function for QC-metric plot  ####
-fig_plot_qc <- function(vol, qc, qc_thres=NULL, qc_name="QC", qc_color="red", miny=NULL, maxy=NULL){
-  df <- data.frame(vol=vol, qc=qc)
-  
-  if(is.null(miny) | is.null(maxy)){
-    miny=min(df$qc)
-    maxy=max(df$qc)
-  }
-  
-  p <- ggplot(data = df, aes(x=vol, y=qc)) +
-    geom_line(color=qc_color) +
-    scale_x_continuous(expand = c(0, 0)) +
-    scale_y_continuous(expand = c(0, 0), limits = c(miny,maxy)) +
-    ylab(label = qc_name)
-  
-  if(!is.null(qc_thres)){
-    qc_flag_x <- which(df$qc > qc_thres)
-    qc_text <- sprintf("%s > %.2f = %d vol", qc_name, qc_thres, length(qc_flag_x))
-    
-    p <- p + geom_hline(yintercept = qc_thres, size=0.2, linetype="dashed") +
-      annotate("text", -Inf, Inf, label=qc_text, hjust = 0, vjust = 1, color=qc_color)
-  }
-  p <- p + theme_minimal() +
-    theme(axis.title.x=element_blank(),
-          axis.text.x=element_blank(),
-          axis.ticks.x=element_blank())
-  return(p)
-}
-
-#### 2. Function for 6 motion plot  ####
-fig_plot_motion <- function(data){
-  ggplot(data, aes(x=vol, y=XYZPYR, fill=motion)) +
-    geom_raster() +
-    scale_fill_distiller(palette = "Greys") +
-    scale_x_continuous(expand = c(0, 0)) +
-    theme_minimal() +
-    theme(legend.position = "none",
-          axis.title.x=element_blank(),
-          axis.text.x=element_blank(),
-          axis.ticks.x=element_blank())
-}
-
-#### 3. Function for gray plot  ####
-fig_plot_time_series <- function(data) {
-  min <- -20 # min(data$bold)
-  max <- 20 # max(data$bold)
-  max_diff <- c(min, max) %>% abs() %>% max()
-  ggplot(data, aes(vol, roi, fill = bold)) +
-    geom_raster() +
-    scale_fill_distiller(palette = "Greys", limits = c(-max_diff, max_diff),
-                         guide = guide_colorbar(label = TRUE,
-                                                frame.colour="black")) +
-    scale_y_reverse(expand=c(0, 0)) + 
-    scale_x_continuous(expand = c(0, 0)) +
-    theme_minimal() + 
-    theme(legend.position = "bottom",
-          legend.margin=margin(c(-20,-300,0,5)))
-}
-
-g1 <- fig_plot_qc(vol = fd$vol, qc = fd$FD, qc_thres=0.3, qc_name="FD", miny = 0, maxy = 2)
-g2 <- fig_plot_qc(vol = dv$vol, qc = dv$DVARS, qc_name="DVARS", qc_color = "blue")
-g3 <- fig_plot_motion(mot_long)
-g4 <- fig_plot_time_series(df_long)
-
+g1 <- plot_qc(qc = fd$FD, qc_thres=0.3, qc_name="FD", miny = 0, maxy = 2)
+g2 <- plot_qc(qc = dv$DVARS, qc_name="DVARS", qc_color = "blue")
+g3 <- plot_motion(motion)
+g4 <- plot_time_series(tp, min = 20, max = 20)
 
 plots_aligned <- AlignPlots(g1, g2, g3, g4)
 ```
@@ -180,18 +97,12 @@ grid.arrange(as.grob(plots_aligned[[1]]),
 
 ![](gifti_in_r_files/figure-gfm/plot_motion-1.png)<!-- -->
 
-``` r
-# tictoc::tic()
-# g2 <- superheat::superheat(tp, y.axis.reverse = T,
-#                      heat.lim = c(-20, 20),
-#                      heat.pal = c("black","white"),
-#                      grid.hline = FALSE,
-#                      grid.vline = FALSE,
-#                      title="Mean Time series of each node")
-# tictoc::toc()
-```
-
 ## Correlation Matrix (z-transformed)
+
+  - The heatmaps here are generated using a customized version of the
+    [superheat (github)](https://github.com/mychan24/superheat) package.
+
+<!-- end list -->
 
 ``` r
 r <- cor(t(tp))         # Correlation matrix between all nodes
@@ -209,7 +120,7 @@ superheat::superheat(z,
                      title="Node x Node Correlation Matrix (z-transformed)")
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
 
 ## Correlation Matrix, nodes ordered by systems
 
@@ -238,7 +149,7 @@ superheat::superheat(X = z,
                      title="Node x Node Correlation Matrix (z-transformed")
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
 
 ## Splitting Negative and Positive
 
@@ -281,4 +192,4 @@ gridExtra::grid.arrange(ggplotify::as.grob(ss_pos$plot), ggplotify::as.grob(ss_n
                         nrow=1)
 ```
 
-![](gifti_in_r_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](gifti_in_r_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->

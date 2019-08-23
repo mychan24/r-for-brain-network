@@ -13,3 +13,4 @@ inst/doc
 .png
 *.tar.gz
 .DS_Store
+/tools/old

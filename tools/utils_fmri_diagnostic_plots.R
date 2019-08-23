@@ -1,7 +1,20 @@
+# #########################################################################
+# This file contains multiple functions to plot diagnostic information 
+# for fMRI data. These can be combine together using grid.arrange() 
+# to reproduce plots similar to ones in Power 2017 (Neuroimage). 
+# 
+# myc & epp 2019/08/22 - Initial
+# #########################################################################
+# 1. plot_time_series()
+# 2. plot_motion()
+# 3. plot_qc()
+
+
+# #########################################################################
 # DESCRIPTION:
-#   Plot QC metrics from fMRI such as Frame Displacement (FD), or DVARS.
+#   Plot fMRI time series.
 #
-# Inputs:   data,       A node x volume/tp matrix
+# Inputs:   data,       A voxel/node x volume/tp matrix
 #
 # Ouput:    p,           A ggplot list that can be print()/ggsave() or feed 
 #                        into grid.arrange()
@@ -33,6 +46,7 @@ plot_time_series <- function(data, min=NULL, max=NULL, colpal="Greys") {
     theme_minimal() 
 }
 
+# #########################################################################
 # DESCRIPTION:
 #   Plot 6 motion paremters from fMRI (e.g., rp_file from SPM).
 #    - X, Y, Z, P, Y, R
@@ -65,6 +79,7 @@ plot_motion <- function(data){
           axis.ticks.x=element_blank())
 }
 
+# #########################################################################
 # DESCRIPTION:
 #   Plot QC metrics from fMRI such as Frame Displacement (FD), or DVARS.
 #

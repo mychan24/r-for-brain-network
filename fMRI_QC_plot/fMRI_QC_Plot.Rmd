@@ -1,0 +1,119 @@
+---
+title: "fMRI QC Plot"
+author: "Micalea Chan"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gifti)
+library(tidyverse)
+library(ggplotify)
+library(gridExtra)
+library(gtable)
+
+source("../tools/AlignPlots.R")
+source("../tools/utils_fmri_diagnostic_plots.R")
+
+ddir <- "/Volumes/data/data3/TMS_OFFLINE/MutualInfo/Rest_MotionProcessed_FD30/final/"
+subid <- "3tb5310"
+
+gL_file <- file.path(ddir, subid, paste(subid, "_allruns__zmdt_resid_ntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep=""))
+gR_file <- file.path(ddir, subid, paste(subid, "_allruns__zmdt_resid_ntrpl_bpss_zmdt_tmasked_smooth2.55mm_L_32k_fsLR.func.gii", sep=""))
+
+nodeL_file <- file.path("../../Chan_RSFC_Nodes/gifti_multiple_columns/Chan_PNAS2014_RSFCBoundaries_32k_fs_LR_extrema_onlyminima_dist8mm_fwhm0_disk3mm_nooverlap_multicolumn_L.func.gii")
+nodeR_file <- file.path("../../Chan_RSFC_Nodes/gifti_multiple_columns/Chan_PNAS2014_RSFCBoundaries_32k_fs_LR_extrema_onlyminima_dist8mm_fwhm0_disk3mm_nooverlap_multicolumn_R.func.gii")
+node_meta_table_file <- "../../Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt"
+
+motion_file <- file.path(ddir, subid, paste(subid, "/total_movement.txt", sep=""))
+fd_file <- file.path(ddir, subid, paste(subid, "/total_FD.txt", sep=""))
+dv_file <- file.path(ddir, subid, paste(subid, "/total_DV_final.txt", sep=""))
+tmask_file <- file.path(ddir, subid, paste(subid, "/total_tmask.txt", sep=""))
+
+```
+
+## Read in files
+
+* Gifti files here are mapped to fs_LR 32k surfaces. 
+* Node sets used can be downloaded from my [github](https://github.com/mychan24/Chan_RSFC_Nodes)
+
+```{r load_files}
+gL <- read_gifti(gL_file)
+gR <- read_gifti(gR_file)
+
+# nodes (L/R): Chan_RSFC_Nodes/gifti_multiple_columns/ROI_L/R_dis8_fwhm0_limit3_overlapEXCLUDE.func.gii
+# metadata: Chan_RSFC_Nodes/Chan_RSFC_Nodes_PNAS2014_metadata.txt
+node_L <- read_gifti(nodeL_file)    
+node_R <- read_gifti(nodeR_file)    
+node_order <- read.table(node_meta_table_file, sep="\t", header=T)  
+
+
+# Load motion/tmask files
+fd <- read.table(fd_file, col.names = "FD")
+fd$vol <- 1:nrow(fd)
+
+motion <- read.table(motion_file, col.names = c("X","Y","Z","P","Y","R"))
+dv <- read.table(dv_file, col.names = "DVARS")
+dv$vol <- 1:nrow(dv)
+
+tmask <- read.table(tmask_file, col.names = "tmask")
+
+# Tmask the motion files
+fd <- data.frame(fd[as.logical(tmask$tmask),])
+motion <- motion[as.logical(tmask$tmask),]
+dv <- dv[as.logical(tmask$tmask),]
+```
+
+
+## Extract Nodes' mean time series from surface data
+
+```{r extract_nodes}
+# sanity check
+gL <- as.matrix(data.frame(gL$data))
+gR <- as.matrix(data.frame(gR$data))
+node_L <- as.matrix(data.frame(node_L$data))
+node_R <- as.matrix(data.frame(node_R$data))
+
+if(ncol(gL)!=ncol(gR)){
+  stop("Column size (# volumes) of left & right hemisphere should be equal. Check input data.")
+}
+
+tp_L <- matrix(0, ncol(node_L), ncol(gL))
+tp_R <- matrix(0, ncol(node_R), ncol(gR))
+
+for(i in 1:ncol(node_L)){                 # Left Hemipshere
+  tp_L[i,]<- colMeans(gL[node_L[,i]==1,])
+}
+
+for(i in 1:ncol(node_R)){                 # Right Hemipshere
+  tp_R[i,]<- colMeans(gR[node_R[,i]==1,])
+}
+
+tp <- rbind(tp_L, tp_R)                   # combine L and R
+rm(tp_L, tp_R) # cleanup
+```
+
+
+## Plot processed mean time series of each node
+* Codes for generating this plot are available on my [github](https://github.com/mychan24/r-for-brain-network/)
+
+```{r plot_motion}
+g1 <- plot_qc(qc = fd$FD, qc_thres=0.3, qc_name="FD", miny = 0, maxy = 2)
+g2 <- plot_qc(qc = dv$DVARS, qc_name="DVARS", qc_color = "blue")
+g3 <- plot_motion(motion)
+g4 <- plot_time_series(tp, min = 20, max = 20)
+
+plots_aligned <- AlignPlots(g1, g2, g3, g4)
+
+
+grid.arrange(as.grob(plots_aligned[[1]]), 
+             as.grob(plots_aligned[[2]]), 
+             as.grob(plots_aligned[[3]]), 
+             as.grob(plots_aligned[[4]]), 
+             ncol=1, heights=c(0.15,0.15,0.1,0.6))
+
+```
+

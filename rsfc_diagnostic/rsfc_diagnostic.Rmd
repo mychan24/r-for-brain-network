@@ -1,0 +1,54 @@
+---
+title: "RSFC Diagnostic (in NIFTI)"
+author: "Micaela Chan"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: github_markdown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cifti)
+library(tidyverse)
+library(pals)
+library(superheat)
+library(igraph)
+
+# Define data paths
+mscfile <- "../data/MSC/derivatives/volume_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii"
+tmask_file <- "../data/MSC/derivatives/volume_pipeline/sub-MSC01/processed_restingstate_timecourses/ses-func01/cifti/sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt"
+
+parcel_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/surface_parcellation/sub-MSC01_parcels.dtseries.nii"
+comm_file <- "../data/MSC/derivatives/surface_pipeline/sub-MSC01/surface_parcellation/sub-MSC01_parcel_networks.dscalar.nii"
+
+# Download data if not availble
+if(!file.exists(mscfile)){
+  dir.create(dirname(mscfile), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:volume_pipeline:sub-MSC01:processed_restingstate_timecourses:ses-func01:cifti:sub-MSC01_ses-func01_task-rest_bold_32k_fsLR.dtseries.nii", destfile = mscfile)
+}
+
+if(!file.exists(tmask_file)){
+  dir.create(dirname(tmask_file), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:processed_restingstate_timecourses:ses-func01:cifti:sub-MSC01_ses-func01_task-rest_bold_32k_fsLR_tmask.txt", destfile = tmask_file)
+}
+
+if(!file.exists(parcel_file)){
+  dir.create(dirname(parcel_file), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:surface_parcellation:sub-MSC01_parcels.dtseries.nii", destfile = parcel_file)
+}
+
+if(!file.exists(comm_file)){
+  dir.create(dirname(comm_file), recursive = T)
+  download.file(url = "https://openneuro.org/crn/datasets/ds000224/snapshots/00002/files/derivatives:surface_pipeline:sub-MSC01:surface_parcellation:sub-MSC01_parcel_networks.dscalar.nii", destfile = comm_file)
+}
+```
+
+### Read in cifti files
+```{r, warning=F}
+# Load CIFTI data files
+cii <- read_cifti(mscfile, drop_data = FALSE, trans_data = T) 
+parcel <- as.matrix(read_cifti(parcel_file)$data)
+comm <- as.matrix(read_cifti(comm_file)$data)
+
+u_parcel <- unique(parcel)
+u_parcel <- u_parcel[u_parcel!=0] # Remove parcel 0 and order parcel by their number
+```

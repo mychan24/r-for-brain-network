@@ -1,6 +1,6 @@
 CIFTI in R, MSC single-subject
 ================
-Micalea Chan
+Micaela Chan
 June 11, 2019
 
 ## Prepare data

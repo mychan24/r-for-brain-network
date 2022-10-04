@@ -1,6 +1,6 @@
 ---
 title: "Gifti in R, Network Workflow"
-author: "Micalea Chan"
+author: "Micaela Chan"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: github_document
 ---

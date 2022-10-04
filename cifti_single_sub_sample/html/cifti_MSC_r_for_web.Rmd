@@ -1,6 +1,6 @@
 ---
 title: "CIFTI in R, MSC single-subject"
-author: "Micalea Chan"
+author: "Micaela Chan"
 date: 'June 11, 2019'
 output: 
   html_document

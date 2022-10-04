@@ -1,6 +1,6 @@
 ---
 title: "CIFTI in R, MSC single-subject"
-author: "Micalea Chan"
+author: "Micaela Chan"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: github_document
 ---

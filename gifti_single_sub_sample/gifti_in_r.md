@@ -1,6 +1,6 @@
 Gifti in R, Network Workflow
 ================
-Micalea Chan
+Micaela Chan
 August 22, 2019
 
 ## Read in files
